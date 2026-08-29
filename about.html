@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>About Our School | NBANA SDA Elementary School</title>
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'Plus Jakarta Sans', 'Segoe UI', sans-serif;
+    }
+
+    body {
+      background-color: #f8fafc;
+      color: #334155;
+      line-height: 1.6;
+      padding-bottom: 60px;
+    }
+
+    /* Top Navigation */
+    .top-bar {
+      background-color: #ffffff;
+      border-bottom: 1px solid #e2e8f0;
+      padding: 16px 8%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .back-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: #0d2c54;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 0.9rem;
+      padding: 8px 16px;
+      border-radius: 6px;
+      background-color: #f1f5f9;
+      transition: all 0.2s ease;
+    }
+
+    .back-btn:hover {
+      background-color: #0d2c54;
+      color: #ffffff;
+    }
+
+    .school-tag {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #64748b;
+    }
+
+    /* Header Section */
+    .header-section {
+      text-align: center;
+      padding: 40px 20px 20px;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+
+    .subtitle-badge {
+      display: inline-block;
+      color: #00a896;
+      font-weight: 700;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      margin-bottom: 8px;
+    }
+
+    .header-section h1 {
+      color: #0d2c54;
+      font-size: 2.2rem;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+    }
+
+    /* Main Container */
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 20px;
+    }
+
+    /* Section Divider Labels */
+    .section-label {
+      text-align: center;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: #94a3b8;
+      margin: 35px 0 20px;
+    }
+
+    /* Flex Grids */
+    .grid-row {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+
+    /* Card Base */
+    .card {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 28px 20px;
+      text-align: center;
+      box-shadow: 0 4px 15px -3px rgba(0, 0, 0, 0.03);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08);
+      border-color: #cbd5e1;
+    }
+
+    .card-admin {
+      width: 240px;
+      border-top: 4px solid #0d2c54;
+    }
+
+    .card-teacher {
+      width: 230px;
+      border-top: 4px solid #00a896;
+    }
+
+    .img-wrapper {
+      width: 100px;
+      height: 100px;
+      margin: 0 auto 16px;
+    }
+
+    .img-wrapper img {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 3px solid #f1f5f9;
+      background-color: #f1f5f9;
+    }
+
+    .card h3 {
+      color: #0f172a;
+      font-size: 0.98rem;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
+    .card .role {
+      color: #028090;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+
+    /* Info Cards (About, Mission, Vision) */
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 20px;
+      margin-top: 10px;
+    }
+
+    .info-card {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 30px 24px;
+      text-align: center;
+      border-top: 4px solid #0d2c54;
+      box-shadow: 0 4px 15px -3px rgba(0, 0, 0, 0.03);
+    }
+
+    .info-card h2 {
+      color: #0d2c54;
+      font-size: 1.25rem;
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+
+    .info-card p {
+      color: #475569;
+      font-size: 0.92rem;
+      line-height: 1.6;
+    }
+
+    /* Footer Note */
+    .footer-note {
+      text-align: center;
+      margin-top: 50px;
+      color: #94a3b8;
+      font-size: 0.85rem;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="top-bar">
+    <a href="index.html" class="back-btn">
+      &#8592; Home
+    </a>
+    <span class="school-tag">Norberto Bana Sr. Mem. SDA Elementary School</span>
+  </div>
+
+  <div class="header-section">
+    <span class="subtitle-badge">Faculty & Leadership</span>
+    <h1>Teachers & Staff</h1>
+  </div>
+
+  <div class="container">
+    
+    <div class="section-label"></div>
+    <div class="grid-row">
+      
+      <div class="card card-admin">
+        <div class="img-wrapper">
+          <img src="principal.jpg" alt="Janice Rose B. Beronas">
+        </div>
+        <h3>Janice Rose B. Beronas</h3>
+        <p class="role">School Principal</p>
+      </div>
+
+      <div class="card card-admin">
+        <div class="img-wrapper">
+          <img src="admin1.jpg" alt="Assistant Principal">
+        </div>
+        <h3>Cleopatra Hilda Bana-Valdehueza</h3>
+        <p class="role">School Administrator</p>
+      </div>
+
+      <div class="card card-admin">
+        <div class="img-wrapper">
+          <img src="admin2.jpg" alt="School Registrar">
+        </div>
+        <h3>Billy A. Rubino</h3>
+        <p class="role">Education Superintendent
+Western Mindanao Conference</p>
+      </div>
+
+    </div>
+
+    <div class="section-label">Teaching Faculty</div>
+    <div class="grid-row">
+      
+      <div class="card card-teacher">
+        <div class="img-wrapper">
+          <img src="teacher1.jpg" alt="Loven R. Nano">
+        </div>
+        <h3>Loven R. Nano</h3>
+        <p class="role">Kinder 1 Teacher</p>
+      </div>
+
+      <div class="card card-teacher">
+        <div class="img-wrapper">
+          <img src="teacher2.jpg" alt="Janice G. Baldicantos">
+        </div>
+        <h3>Janice G. Baldicantos</h3>
+        <p class="role">Kinder 2 Teacher</p>
+      </div>
+
+      <div class="card card-teacher">
+        <div class="img-wrapper">
+          <img src="teacher3.jpg" alt="Estephanie V. Perolino">
+        </div>
+        <h3>Estephanie V. Perolino</h3>
+        <p class="role">Grade 1 Teacher</p>
+      </div>
+
+      <div class="card card-teacher">
+        <div class="img-wrapper">
+          <img src="teacher4.jpg" alt="Adelfa B. Quilat">
+        </div>
+        <h3>Adelfa B. Quilat</h3>
+        <p class="role">Grade 2 Teacher</p>
+      </div>
+
+      <div class="card card-teacher">
+        <div class="img-wrapper">
+          <img src="teacher5.jpg" alt="Sunshine Rose A. Anggot">
+        </div>
+        <h3>Sunshine Rose A. Anggot</h3>
+        <p class="role">Grade 3 Teacher</p>
+      </div>
+
+      <div class="card card-teacher">
+        <div class="img-wrapper">
+          <img src="teacher6.jpg" alt="Rotchel D. Alozo">
+        </div>
+        <h3>Rotchel D. Alozo</h3>
+        <p class="role">Grade 4 Teacher</p>
+      </div>
+
+      <div class="card card-teacher">
+        <div class="img-wrapper">
+          <img src="teacher7.jpg" alt="Joy E. Lomongo">
+        </div>
+        <h3>Joy E. Lomongo</h3>
+        <p class="role">Grade 5 Teacher</p>
+      </div>
+
+      <div class="card card-teacher">
+        <div class="img-wrapper">
+          <img src="teacher8.jpg" alt="Sandra E. Argod">
+        </div>
+        <h3>Sandra E. Argod</h3>
+        <p class="role">Grade 6 Teacher</p>
+      </div>
+
+    </div>
+
+    <div class="section-label" style="margin-top: 50px;">School Overview</div>
+    <div class="info-grid">
+      
+      <div class="info-card">
+        <h2>About Our School</h2>
+        <p>Welcome to Norberto Bana Sr. Mem. SDA Elementary School. Our school is committed to providing quality education and helping students develop their knowledge, skills, character, and values.</p>
+      </div>
+
+      <div class="info-card">
+        <h2>Mission</h2>
+        <p>Norberto Bana Sr. Memorial SDA Elementary School is an Adventist school that prepares students for a useful and joy-filled life.</p>
+      </div>
+
+      <div class="info-card">
+        <h2>Vision</h2>
+        <p>Norberto Bana Sr. Memorial SDA Elementary School is a performing school that aims to contribute to pupils' achievement and development.</p>
+      </div>
+
+    </div>
+
+    <div class="footer-note">
+      &copy; Norberto Bana Sr. Mem. SDA Elementary School
+    </div>
+
+  </div>
+
+</body>
+</html>
