@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Students - NBANA APP</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Navigation Bar -->
+  <nav class="navbar">
+    <div class="logo">NBANA APP</div>
+    <ul class="nav-links">
+      <li><a href="index.html">Home</a></li>
+      <li><a href="about.html">About</a></li>
+      <li><a href="students.html" class="active">Students</a></li>
+    </ul>
+  </nav>
+
+  <!-- Main Content -->
+  <main class="container">
+    <header class="page-header">
+      <h1>Student Directory</h1>
+      <p>Search for enrolled students and click their card to view their official ID.</p>
+    </header>
+
+    <!-- Search Section -->
+    <div class="search-container">
+      <input 
+        type="text" 
+        id="studentSearch" 
+        placeholder="Search student by name..." 
+        onkeyup="filterStudents()"
+      >
+    </div>
+
+    <!-- Student Cards Grid -->
+    <div class="card-grid" id="studentGrid">
+
+      <!-- Student Card 1 -->
+      <div class="student-card" onclick="openModal('assets/ids/hancevincent.png')">
+        <div class="avatar">
+          <img src="assets/students/hancevincent.png" alt="Hanse Vincent L. Banda" onerror="this.src='https://via.placeholder.com/100?text=No+Photo'">
+        </div>
+        <h3 class="student-name">Hanse Vincent L. Banda</h3>
+        <p class="student-grade">Kinder 1</p>
+      </div>
+
+      <!-- Student Card 2 -->
+      <div class="student-card" onclick="openModal('assets/ids/baelian.jpg')">
+        <div class="avatar">
+          <img src="assets/students/baelian.png" alt="Baelian S. Carmelotes" onerror="this.src='https://via.placeholder.com/100?text=No+Photo'">
+        </div>
+        <h3 class="student-name">Baelian S. Carmelotes</h3>
+        <p class="student-grade">Kinder 1</p>
+      </div>
+
+      <!-- Student Card 3 -->
+      <div class="student-card" onclick="openModal('assets/ids/rykdavid.jpg')">
+        <div class="avatar">
+          <img src="assets/students/rykdavid.png" alt="Ryk David B. Robles" onerror="this.src='https://via.placeholder.com/100?text=No+Photo'">
+        </div>
+        <h3 class="student-name">Ryk David B. Robles</h3>
+        <p class="student-grade">Kinder 1</p>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- ID Card Overlay Window -->
+  <div id="idOverlay" class="overlay" onclick="closeModal()">
+    <img id="overlayImg" src="" alt="Student ID Card">
+  </div>
+
+  <script>
+    function filterStudents() {
+      const input = document.getElementById('studentSearch').value.trim().toLowerCase();
+      const cards = document.getElementsByClassName('student-card');
+
+      for (let i = 0; i < cards.length; i++) {
+        const name = cards[i].querySelector('.student-name').innerText.toLowerCase();
+
+        if (input === "") {
+          cards[i].style.display = 'none';
+        } else if (name.includes(input)) {
+          cards[i].style.display = 'flex';
+        } else {
+          cards[i].style.display = 'none';
+        }
+      }
+    }
+
+    // Open overlay when student card is clicked
+    function openModal(idImagePath) {
+      const overlay = document.getElementById('idOverlay');
+      const overlayImg = document.getElementById('overlayImg');
+      overlayImg.src = idImagePath;
+      overlay.style.display = 'flex';
+    }
+
+    // Close overlay when clicking ANYWHERE on screen
+    function closeModal() {
+      document.getElementById('idOverlay').style.display = 'none';
+    }
+  </script>
+</body>
+</html>
