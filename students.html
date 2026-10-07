@@ -4,28 +4,31 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Students - NBANA APP</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-  <!-- Navigation Bar -->
   <nav class="navbar">
-    <div class="logo">NBANA APP</div>
+    <a href="index.html" class="logo">
+      <img src="logo.png" alt="NBANA Logo" class="logo-img">
+      <span class="school-name">NBANA SDA Elementary</span>
+    </a>
     <ul class="nav-links">
       <li><a href="index.html">Home</a></li>
       <li><a href="about.html">About</a></li>
       <li><a href="students.html" class="active">Students</a></li>
+      <li><a href="index.html#announcements">Announcements</a></li>
     </ul>
+    <div class="nav-auth"></div>
   </nav>
 
-  <!-- Main Content -->
   <main class="container">
     <header class="page-header">
       <h1>Student Directory</h1>
       <p>Search for enrolled students and click their card to view their official ID.</p>
     </header>
 
-    <!-- Search Section -->
     <div class="search-container">
       <input 
         type="text" 
@@ -35,11 +38,9 @@
       >
     </div>
 
-    <!-- Student Cards Grid -->
     <div class="card-grid" id="studentGrid">
 
-      <!-- Student Card 1 -->
-      <div class="student-card" onclick="openModal('assets/ids/hancevincent.png')">
+      <div class="student-card" onclick="openModal('assets/ids/front/k1/hancevincent.png', 'assets/ids/back/k1/hancevincent.png')">
         <div class="avatar">
           <img src="assets/students/hancevincent.png" alt="Hanse Vincent L. Banda" onerror="this.src='https://via.placeholder.com/100?text=No+Photo'">
         </div>
@@ -47,8 +48,7 @@
         <p class="student-grade">Kinder 1</p>
       </div>
 
-      <!-- Student Card 2 -->
-      <div class="student-card" onclick="openModal('assets/ids/baelian.jpg')">
+      <div class="student-card" onclick="openModal('assets/ids/front/k1/baelian.png', 'assets/ids/back/k1/baelian.png')">
         <div class="avatar">
           <img src="assets/students/baelian.png" alt="Baelian S. Carmelotes" onerror="this.src='https://via.placeholder.com/100?text=No+Photo'">
         </div>
@@ -56,8 +56,7 @@
         <p class="student-grade">Kinder 1</p>
       </div>
 
-      <!-- Student Card 3 -->
-      <div class="student-card" onclick="openModal('assets/ids/rykdavid.jpg')">
+      <div class="student-card" onclick="openModal('assets/ids/front/k1/rykdavid.png', 'assets/ids/back/k1/rykdavid.png')">
         <div class="avatar">
           <img src="assets/students/rykdavid.png" alt="Ryk David B. Robles" onerror="this.src='https://via.placeholder.com/100?text=No+Photo'">
         </div>
@@ -65,15 +64,214 @@
         <p class="student-grade">Kinder 1</p>
       </div>
 
+      <div class="student-card" onclick="openModal('assets/ids/front/k1/jrue.png', 'assets/ids/back/k1/jrue.png')">
+        <div class="avatar">
+          <img src="assets/students/jrue.png" alt="Jrue Angelo E. Tan" onerror="this.src='https://via.placeholder.com/100?text=No+Photo'">
+        </div>
+        <h3 class="student-name">Jrue Angelo E. Tan</h3>
+        <p class="student-grade">Kinder 1</p>
+      </div>
+
+      <div class="student-card" onclick="openModal('assets/ids/front/k1/sadirian.png', 'assets/ids/back/k1/sadirian.png')">
+        <div class="avatar">
+          <img src="assets/students/sadirian.png" alt="Sadirian M. Samman" onerror="this.src='https://via.placeholder.com/100?text=No+Photo'">
+        </div>
+        <h3 class="student-name">Sadirian M. Samman</h3>
+        <p class="student-grade">Kinder 1</p>
+      </div>
+
+      <div class="student-card" onclick="openModal('assets/ids/front/k1/evans.png', 'assets/ids/back/k1/evans.png')">
+        <div class="avatar">
+          <img src="assets/students/evans.png" alt="Evans Theodore T. Sarmiento" onerror="this.src='https://via.placeholder.com/100?text=No+Photo'">
+        </div>
+        <h3 class="student-name">Evans Theodore T. Sarmiento</h3>
+        <p class="student-grade">Kinder 1</p>
+      </div>
+
+      <div class="student-card" onclick="openModal('assets/ids/front/k1/jedazriel.png', 'assets/ids/back/k1/jedazriel.png')">
+        <div class="avatar">
+          <img src="assets/students/jedazriel.png" alt="Jed Azriel C. Templa" onerror="this.src='https://via.placeholder.com/100?text=No+Photo'">
+        </div>
+        <h3 class="student-name">Jed Azriel C. Templa</h3>
+        <p class="student-grade">Kinder 1</p>
+      </div>
+
+      <div class="student-card" onclick="openModal('assets/ids/front/k1/afnan.png', 'assets/ids/back/k1/afnan.png')">
+        <div class="avatar">
+          <img src="assets/students/afnan.png" alt="Afnan C. Abbas" onerror="this.src='https://via.placeholder.com/100?text=No+Photo'">
+        </div>
+        <h3 class="student-name">Afnan C. Abbas</h3>
+        <p class="student-grade">Kinder 1</p>
+      </div>
+
+      <div class="student-card" onclick="openModal('assets/ids/front/k1/rykdavid.png', 'assets/ids/back/k1/rykdavid.png')">
+        <div class="avatar">
+          <img src="assets/students/rykdavid.png" alt="Ryk David B. Robles" onerror="this.src='https://via.placeholder.com/100?text=No+Photo'">
+        </div>
+        <h3 class="student-name">Ryk David B. Robles</h3>
+        <p class="student-grade">Kinder 1</p>
+      </div>
+
+      <div class="student-card" onclick="openModal('assets/ids/front/k1/hancevincent.png', 'assets/ids/back/k1/hancevincent.png')">
+        <div class="avatar">
+          <img src="assets/students/hancevincent.png" alt="Hanse Vincent L. Banda" onerror="this.src='https://via.placeholder.com/100?text=No+Photo'">
+        </div>
+        <h3 class="student-name">Hanse Vincent L. Banda</h3>
+        <p class="student-grade">Kinder 1</p>
+      </div>
+
+      <div class="student-card" onclick="openModal('assets/ids/front/k1/baelian.png', 'assets/ids/back/k1/baelian.png')">
+        <div class="avatar">
+          <img src="assets/students/baelian.png" alt="Baelian S. Carmelotes" onerror="this.src='https://via.placeholder.com/100?text=No+Photo'">
+        </div>
+        <h3 class="student-name">Baelian S. Carmelotes</h3>
+        <p class="student-grade">Kinder 1</p>
+      </div>
+
+      <div class="student-card" onclick="openModal('assets/ids/front/k1/rykdavid.png', 'assets/ids/back/k1/rykdavid.png')">
+        <div class="avatar">
+          <img src="assets/students/rykdavid.png" alt="Ryk David B. Robles" onerror="this.src='https://via.placeholder.com/100?text=No+Photo'">
+        </div>
+        <h3 class="student-name">Ryk David B. Robles</h3>
+        <p class="student-grade">Kinder 1</p>
+      </div>
+
+      <div class="student-card" onclick="openModal('assets/ids/front/k1/hancevincent.png', 'assets/ids/back/k1/hancevincent.png')">
+        <div class="avatar">
+          <img src="assets/students/hancevincent.png" alt="Hanse Vincent L. Banda" onerror="this.src='https://via.placeholder.com/100?text=No+Photo'">
+        </div>
+        <h3 class="student-name">Hanse Vincent L. Banda</h3>
+        <p class="student-grade">Kinder 1</p>
+      </div>
+
+      <div class="student-card" onclick="openModal('assets/ids/front/k1/baelian.png', 'assets/ids/back/k1/baelian.png')">
+        <div class="avatar">
+          <img src="assets/students/baelian.png" alt="Baelian S. Carmelotes" onerror="this.src='https://via.placeholder.com/100?text=No+Photo'">
+        </div>
+        <h3 class="student-name">Baelian S. Carmelotes</h3>
+        <p class="student-grade">Kinder 1</p>
+      </div>
+
+      <div class="student-card" onclick="openModal('assets/ids/front/k1/rykdavid.png', 'assets/ids/back/k1/rykdavid.png')">
+        <div class="avatar">
+          <img src="assets/students/rykdavid.png" alt="Ryk David B. Robles" onerror="this.src='https://via.placeholder.com/100?text=No+Photo'">
+        </div>
+        <h3 class="student-name">Ryk David B. Robles</h3>
+        <p class="student-grade">Kinder 1</p>
+      </div>
+
+      <div class="student-card" onclick="openModal('assets/ids/front/k1/hancevincent.png', 'assets/ids/back/k1/hancevincent.png')">
+        <div class="avatar">
+          <img src="assets/students/hancevincent.png" alt="Hanse Vincent L. Banda" onerror="this.src='https://via.placeholder.com/100?text=No+Photo'">
+        </div>
+        <h3 class="student-name">Hanse Vincent L. Banda</h3>
+        <p class="student-grade">Kinder 1</p>
+      </div>
+
+      <div class="student-card" onclick="openModal('assets/ids/front/k1/baelian.png', 'assets/ids/back/k1/baelian.png')">
+        <div class="avatar">
+          <img src="assets/students/baelian.png" alt="Baelian S. Carmelotes" onerror="this.src='https://via.placeholder.com/100?text=No+Photo'">
+        </div>
+        <h3 class="student-name">Baelian S. Carmelotes</h3>
+        <p class="student-grade">Kinder 1</p>
+      </div>
+
+      <div class="student-card" onclick="openModal('assets/ids/front/k1/rykdavid.png', 'assets/ids/back/k1/rykdavid.png')">
+        <div class="avatar">
+          <img src="assets/students/rykdavid.png" alt="Ryk David B. Robles" onerror="this.src='https://via.placeholder.com/100?text=No+Photo'">
+        </div>
+        <h3 class="student-name">Ryk David B. Robles</h3>
+        <p class="student-grade">Kinder 1</p>
+      </div>
+
+      <div class="student-card" onclick="openModal('assets/ids/front/k1/hancevincent.png', 'assets/ids/back/k1/hancevincent.png')">
+        <div class="avatar">
+          <img src="assets/students/hancevincent.png" alt="Hanse Vincent L. Banda" onerror="this.src='https://via.placeholder.com/100?text=No+Photo'">
+        </div>
+        <h3 class="student-name">Hanse Vincent L. Banda</h3>
+        <p class="student-grade">Kinder 1</p>
+      </div>
+
+      <div class="student-card" onclick="openModal('assets/ids/front/k1/baelian.png', 'assets/ids/back/k1/baelian.png')">
+        <div class="avatar">
+          <img src="assets/students/baelian.png" alt="Baelian S. Carmelotes" onerror="this.src='https://via.placeholder.com/100?text=No+Photo'">
+        </div>
+        <h3 class="student-name">Baelian S. Carmelotes</h3>
+        <p class="student-grade">Kinder 1</p>
+      </div>
+
+      <div class="student-card" onclick="openModal('assets/ids/front/k1/rykdavid.png', 'assets/ids/back/k1/rykdavid.png')">
+        <div class="avatar">
+          <img src="assets/students/rykdavid.png" alt="Ryk David B. Robles" onerror="this.src='https://via.placeholder.com/100?text=No+Photo'">
+        </div>
+        <h3 class="student-name">Ryk David B. Robles</h3>
+        <p class="student-grade">Kinder 1</p>
+      </div>
+
+      <div class="student-card" onclick="openModal('assets/ids/front/k1/hancevincent.png', 'assets/ids/back/k1/hancevincent.png')">
+        <div class="avatar">
+          <img src="assets/students/hancevincent.png" alt="Hanse Vincent L. Banda" onerror="this.src='https://via.placeholder.com/100?text=No+Photo'">
+        </div>
+        <h3 class="student-name">Hanse Vincent L. Banda</h3>
+        <p class="student-grade">Kinder 1</p>
+      </div>
+
+      <div class="student-card" onclick="openModal('assets/ids/front/k1/baelian.png', 'assets/ids/back/k1/baelian.png')">
+        <div class="avatar">
+          <img src="assets/students/baelian.png" alt="Baelian S. Carmelotes" onerror="this.src='https://via.placeholder.com/100?text=No+Photo'">
+        </div>
+        <h3 class="student-name">Baelian S. Carmelotes</h3>
+        <p class="student-grade">Kinder 1</p>
+      </div>
+
+      <div class="student-card" onclick="openModal('assets/ids/front/k1/rykdavid.png', 'assets/ids/back/k1/rykdavid.png')">
+        <div class="avatar">
+          <img src="assets/students/rykdavid.png" alt="Ryk David B. Robles" onerror="this.src='https://via.placeholder.com/100?text=No+Photo'">
+        </div>
+        <h3 class="student-name">Ryk David B. Robles</h3>
+        <p class="student-grade">Kinder 1</p>
+      </div>
+
+      <div class="student-card" onclick="openModal('assets/ids/front/k1/hancevincent.png', 'assets/ids/back/k1/hancevincent.png')">
+        <div class="avatar">
+          <img src="assets/students/hancevincent.png" alt="Hanse Vincent L. Banda" onerror="this.src='https://via.placeholder.com/100?text=No+Photo'">
+        </div>
+        <h3 class="student-name">Hanse Vincent L. Banda</h3>
+        <p class="student-grade">Kinder 1</p>
+      </div>
+
+      <div class="student-card" onclick="openModal('assets/ids/front/k1/baelian.png', 'assets/ids/back/k1/baelian.png')">
+        <div class="avatar">
+          <img src="assets/students/baelian.png" alt="Baelian S. Carmelotes" onerror="this.src='https://via.placeholder.com/100?text=No+Photo'">
+        </div>
+        <h3 class="student-name">Baelian S. Carmelotes</h3>
+        <p class="student-grade">Kinder 1</p>
+      </div>
+
+      <div class="student-card" onclick="openModal('assets/ids/front/k1/rykdavid.png', 'assets/ids/back/k1/rykdavid.png')">
+        <div class="avatar">
+          <img src="assets/students/rykdavid.png" alt="Ryk David B. Robles" onerror="this.src='https://via.placeholder.com/100?text=No+Photo'">
+        </div>
+        <h3 class="student-name">Ryk David B. Robles</h3>
+        <p class="student-grade">Kinder 1</p>
+      </div>
+
+
     </div>
   </main>
 
-  <!-- ID Card Overlay Window -->
-  <div id="idOverlay" class="overlay" onclick="closeModal()">
-    <img id="overlayImg" src="" alt="Student ID Card">
+  <div id="idOverlay" class="overlay" onclick="closeModal(event)">
+    <div class="id-wrapper">
+      <img id="overlayImg" src="" alt="Student ID Card" onclick="toggleIDSide(event)">
+      <p class="flip-hint">Click ID card to flip</p>
+    </div>
   </div>
 
   <script>
+    let currentFrontSrc = "";
+    let currentBackSrc = "";
+    let showingFront = true;
+
     function filterStudents() {
       const input = document.getElementById('studentSearch').value.trim().toLowerCase();
       const cards = document.getElementsByClassName('student-card');
@@ -91,18 +289,40 @@
       }
     }
 
-    // Open overlay when student card is clicked
-    function openModal(idImagePath) {
+    // Open overlay with both front and back paths
+    function openModal(frontSrc, backSrc) {
+      currentFrontSrc = frontSrc;
+      currentBackSrc = backSrc;
+      showingFront = true;
+
       const overlay = document.getElementById('idOverlay');
       const overlayImg = document.getElementById('overlayImg');
-      overlayImg.src = idImagePath;
+      
+      overlayImg.src = currentFrontSrc;
       overlay.style.display = 'flex';
     }
 
-    // Close overlay when clicking ANYWHERE on screen
-    function closeModal() {
-      document.getElementById('idOverlay').style.display = 'none';
+    // Flip between front and back images when clicking the image itself
+    function toggleIDSide(event) {
+      event.stopPropagation(); // Prevents overlay close trigger
+      const overlayImg = document.getElementById('overlayImg');
+
+      if (showingFront) {
+        overlayImg.src = currentBackSrc;
+        showingFront = false;
+      } else {
+        overlayImg.src = currentFrontSrc;
+        showingFront = true;
+      }
+    }
+
+    // Close overlay when clicking anywhere outside the ID image
+    function closeModal(event) {
+      if (event.target.classList.contains('overlay') || event.target.classList.contains('id-wrapper')) {
+        document.getElementById('idOverlay').style.display = 'none';
+      }
     }
   </script>
+  <script src="app.js"></script>
 </body>
 </html>

@@ -4,6 +4,25 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>NBANA APP | Norberto Bana Sr. Mem. SDA Elementary School</title>
+  
+  <!-- Favicon (Browser Tab Icon) -->
+  <link rel="icon" type="image/png" href="logo.png">
+  <link rel="apple-touch-icon" href="logo.png">
+
+  <!-- Open Graph Meta Tags (Social Media & Preview Image) -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="NBANA APP | Norberto Bana Sr. Mem. SDA Elementary School">
+  <meta property="og:description" content="Nurturing faith, academic excellence, and character development in a Christian environment.">
+  <meta property="og:image" content="logo.png">
+
+  <!-- Twitter Card Tags -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="NBANA APP | Norberto Bana Sr. Mem. SDA Elementary School">
+  <meta name="twitter:description" content="Nurturing faith, academic excellence, and character development in a Christian environment.">
+  <meta name="twitter:image" content="logo.png">
+
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -15,20 +34,24 @@
       <span class="school-name">NBANA SDA Elementary</span>
     </div>
     <ul class="nav-links">
-      <li><a href="#home">Home</a></li>
+      <li><a href="#home" class="active">Home</a></li>
       <li><a href="about.html">About</a></li>
-      <a href="students.html" class="nav-link">Students</a>
+      <li><a href="students.html">Students</a></li>
       <li><a href="#announcements">Announcements</a></li>
+      <li><a href="#faq">FAQ</a></li>
     </ul>
+    <div class="nav-auth"></div>
   </nav>
 
   <!-- Hero Section -->
   <header id="home" class="hero">
     <div class="hero-content">
+      <span class="hero-badge">Christian Education &bull; Kindergarten to Grade 6</span>
       <h1>Norberto Bana Sr. Memorial SDA Elementary School</h1>
       <p>Nurturing faith, academic excellence, and character development in a Christian environment.</p>
       <div class="hero-buttons">
-        <a href="#announcements" class="btn btn-primary">School News</a>
+        <a href="#announcements" class="btn btn-primary btn-lg">School News</a>
+        <a href="portal.html" class="btn btn-outline btn-lg">Open Student Portal</a>
       </div>
     </div>
   </header>
@@ -37,6 +60,49 @@
   <div class="campus-container">
     <img src="campus.jpg" alt="Norberto Bana Sr. Mem. SDA Campus" class="campus-img">
   </div>
+
+  <!-- Animated counters -->
+  <div class="counter-band reveal">
+    <div class="counter-item"><div class="num"><span data-count="8">0</span></div><div class="label">Grade levels (K to 6)</div></div>
+    <div class="counter-item"><div class="num"><span data-count="14">0</span></div><div class="label">Faculty &amp; staff</div></div>
+    <div class="counter-item"><div class="num"><span data-count="6">0</span></div><div class="label">School leaders</div></div>
+    <div class="counter-item"><div class="num"><span data-count="100" data-suffix="%">0</span></div><div class="label">Faith-based learning</div></div>
+  </div>
+
+  <!-- Quick access -->
+  <section class="container" style="padding-bottom:0">
+    <div class="section-head reveal">
+      <span class="kicker">Quick Access</span>
+      <h2>Where would you like to go?</h2>
+      <p>Everything students and parents need, one click away.</p>
+    </div>
+    <div class="quick-grid reveal">
+      <a class="quick-card" href="portal.html">
+        <span class="q-icon">&#127968;</span>
+        <h3>Student Portal</h3>
+        <p>Tuition fee balance, grades, attendance, schedule, and assignments.</p>
+        <span class="q-arrow">Open portal &rarr;</span>
+      </a>
+      <a class="quick-card" href="login.html">
+        <span class="q-icon">&#128274;</span>
+        <h3>Create an Account</h3>
+        <p>Register by taking the short student information survey first.</p>
+        <span class="q-arrow">Sign up &rarr;</span>
+      </a>
+      <a class="quick-card" href="students.html">
+        <span class="q-icon">&#127891;</span>
+        <h3>Student Directory</h3>
+        <p>Search enrolled pupils and view their official school IDs.</p>
+        <span class="q-arrow">Browse students &rarr;</span>
+      </a>
+      <a class="quick-card" href="about.html">
+        <span class="q-icon">&#128101;</span>
+        <h3>Faculty &amp; Staff</h3>
+        <p>Meet the teachers, administrators, and school leadership.</p>
+        <span class="q-arrow">Meet the team &rarr;</span>
+      </a>
+    </div>
+  </section>
 
   <!-- Quick Info Highlights -->
   <section class="stats">
@@ -79,16 +145,87 @@
 
     <!-- Announcements -->
     <section id="announcements" class="section">
-      <h2>Latest Announcements</h2>
-      <div class="card announcement">
-        <span class="tag">Enrollment</span>
+      <div class="section-head reveal">
+        <span class="kicker">Stay Updated</span>
+        <h2>Latest Announcements</h2>
+        <p>Official notices from the administration office.</p>
+      </div>
+      <div class="card announcement reveal">
+        <span class="tag">Enrollment</span> <span class="date">Ongoing</span>
         <h3>School Year Enrollment Open</h3>
         <p>Enrollment for the upcoming school year is now ongoing. Visit the administration office for requirements and inquiries.</p>
       </div>
-      <div class="card announcement">
-        <span class="tag">Event</span>
-        <h3>Upcoming Campus Activity</h3>
+      <div class="card announcement reveal">
+        <span class="tag">Event</span> <span class="date">Coming soon</span>
+        <h3>Spiritual Emphasis Week</h3>
         <p>Stay tuned for details on our upcoming Spiritual Emphasis Week and family night gathering.</p>
+      </div>
+      <div class="card announcement reveal">
+        <span class="tag">Billing</span> <span class="date">Every 15th</span>
+        <h3>Tuition Installments Are Due Every 15th</h3>
+        <p>Parents may settle tuition at the treasurer&rsquo;s office, or sign in to the portal to view the balance and record payments.</p>
+      </div>
+    </section>
+
+    <!-- Events -->
+    <section class="section">
+      <div class="section-head reveal">
+        <span class="kicker">School Life</span>
+        <h2>Events &amp; Activities</h2>
+        <p>A glimpse of what happens on campus throughout the year.</p>
+      </div>
+      <div class="events-grid reveal">
+        <div class="event-card">
+          <span class="when">Ongoing</span>
+          <h3>Enrollment Period</h3>
+          <p>New and returning families may visit the administration office to enroll for the school year.</p>
+        </div>
+        <div class="event-card">
+          <span class="when">Coming soon</span>
+          <h3>Spiritual Emphasis Week</h3>
+          <p>A week of worship, character-building activities, and student fellowship.</p>
+        </div>
+        <div class="event-card">
+          <span class="when">Coming soon</span>
+          <h3>Family Night Gathering</h3>
+          <p>Students, parents, and teachers come together for an evening of programs and sharing.</p>
+        </div>
+        <div class="event-card">
+          <span class="when">Every Saturday</span>
+          <h3>Pathfinder &amp; Sabbath School</h3>
+          <p>Weekly spiritual activities that build faith, leadership, and friendship.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- FAQ -->
+    <section id="faq" class="section">
+      <div class="section-head reveal">
+        <span class="kicker">Need Help?</span>
+        <h2>Frequently Asked Questions</h2>
+        <p>Quick answers about the portal, enrollment, and school services.</p>
+      </div>
+      <div class="faq-list reveal">
+        <div class="faq-item">
+          <button type="button">How do I create a portal account?</button>
+          <div class="answer"><p>Click <strong>Sign In</strong> in the menu, switch to the <strong>Create Account</strong> tab, and complete the 5-part student information survey (name, age, address, schooling, and login details). Your account is created only after the whole survey is finished.</p></div>
+        </div>
+        <div class="faq-item">
+          <button type="button">How can I check the tuition fee balance?</button>
+          <div class="answer"><p>Sign in to the <strong>Student Portal</strong> and open <strong>Tuition &amp; Fees</strong>. You will see your assessed fees, total payments, outstanding balance, due dates, and a printable statement of account.</p></div>
+        </div>
+        <div class="faq-item">
+          <button type="button">What else can students see in the portal?</button>
+          <div class="answer"><p>Grades and report card ratings, attendance record, weekly class schedule, assignments with due dates, school announcements, and the profile you submitted during registration.</p></div>
+        </div>
+        <div class="faq-item">
+          <button type="button">Where do I see student IDs and the class list?</button>
+          <div class="answer"><p>Open the <strong>Students</strong> page from the menu. Search a name and click a card to view the front and back of the official school ID.</p></div>
+        </div>
+        <div class="faq-item">
+          <button type="button">Who do I contact for billing or record corrections?</button>
+          <div class="answer"><p>Visit the administration office with a valid ID, or speak to the school treasurer for tuition and payment concerns.</p></div>
+        </div>
       </div>
     </section>
 
@@ -96,8 +233,37 @@
 
   <!-- Footer -->
   <footer>
-    <p>&copy; Norberto Bana Sr. Mem. SDA Elementary School. All rights reserved.</p>
+    <div class="footer-grid">
+      <div>
+        <h4>NBANA SDA Elementary</h4>
+        <p>Norberto Bana Sr. Memorial SDA Elementary School &mdash; nurturing faith, academic excellence, and character development in a Christian environment.</p>
+      </div>
+      <div>
+        <h4>Explore</h4>
+        <ul>
+          <li><a href="#home">Home</a></li>
+          <li><a href="about.html">About &amp; Faculty</a></li>
+          <li><a href="students.html">Student Directory</a></li>
+          <li><a href="#announcements">Announcements</a></li>
+          <li><a href="#faq">FAQ</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Portal</h4>
+        <ul>
+          <li><a href="login.html">Sign In / Register</a></li>
+          <li><a href="portal.html">Tuition &amp; Fees</a></li>
+          <li><a href="portal.html">Grades &amp; Attendance</a></li>
+          <li><a href="portal.html">Assignments</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      &copy; <span data-year></span> Norberto Bana Sr. Mem. SDA Elementary School. All rights reserved.
+    </div>
   </footer>
+
+  <script src="app.js"></script>
 
 </body>
 </html>

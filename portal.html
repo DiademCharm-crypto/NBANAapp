@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>School Portal | NBANA SDA Elementary School</title>
+  <link rel="icon" type="image/png" href="logo.png">
+  <link rel="apple-touch-icon" href="logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="portal.css">
+</head>
+<body>
+
+  <nav class="navbar">
+    <a href="index.html" class="logo">
+      <img src="logo.png" alt="NBANA Logo" class="logo-img">
+      <span class="school-name">NBANA SDA Elementary</span>
+    </a>
+    <ul class="nav-links">
+      <li><a href="index.html">Home</a></li>
+      <li><a href="about.html">About</a></li>
+      <li><a href="students.html">Students</a></li>
+      <li><a href="index.html#announcements">Announcements</a></li>
+    </ul>
+    <div class="nav-auth"></div>
+  </nav>
+
+  <div class="portal-shell" id="portalShell">
+
+    <aside class="portal-side" id="portalSide">
+      <div class="side-user">
+        <div class="side-avatar" id="sideAvatar">--</div>
+        <div>
+          <strong id="sideName">Student</strong>
+          <span id="sideGrade">Grade level</span>
+        </div>
+      </div>
+
+      <nav class="side-nav" id="sideNav">
+        <button type="button" class="active" data-view="dashboard"><span class="s-icon">&#8962;</span>Dashboard</button>
+        <button type="button" data-view="fees"><span class="s-icon">&#8369;</span>Tuition &amp; Fees</button>
+        <button type="button" data-view="grades"><span class="s-icon">&#9733;</span>Grades</button>
+        <button type="button" data-view="attendance"><span class="s-icon">&#10003;</span>Attendance</button>
+        <button type="button" data-view="schedule"><span class="s-icon">&#9200;</span>Class Schedule</button>
+        <button type="button" data-view="tasks"><span class="s-icon">&#9776;</span>Assignments</button>
+        <button type="button" data-view="news"><span class="s-icon">&#9993;</span>Announcements</button>
+        <button type="button" data-view="profile"><span class="s-icon">&#9823;</span>My Profile</button>
+      </nav>
+
+      <div class="side-foot">
+        <button type="button" class="side-logout" id="logoutBtn">Log out</button>
+        <p class="side-note">NBANA School Portal &mdash; demo build. Data is stored locally in your browser.</p>
+      </div>
+    </aside>
+
+    <main class="portal-main">
+      <header class="portal-top">
+        <button type="button" id="sideToggle" aria-label="Open menu">&#9776;</button>
+        <div class="pt-title">
+          <h1 id="viewTitle">Dashboard</h1>
+          <p id="viewSub">Your school day at a glance</p>
+        </div>
+        <div class="pt-right">
+          <span class="chip" id="chipYear">SY 2026-2027</span>
+          <span class="chip chip-teal" id="chipDate">Today</span>
+        </div>
+      </header>
+
+      <!-- ============ DASHBOARD ============ -->
+      <section class="view active" id="view-dashboard">
+        <div class="welcome-banner">
+          <span class="wb-kicker" id="wbKicker">Welcome</span>
+          <h2 id="wbName">Student</h2>
+          <p id="wbText">Here is your school day at a glance.</p>
+        </div>
+
+        <div class="summary-grid">
+          <div class="summary-card">
+            <span class="sc-icon">&#8369;</span>
+            <span class="sc-label">Tuition balance</span>
+            <div class="sc-value" id="sumBalance">&mdash;</div>
+            <div class="sc-sub" id="sumBalanceSub">&mdash;</div>
+          </div>
+          <div class="summary-card">
+            <span class="sc-icon">&#10003;</span>
+            <span class="sc-label">Attendance rate</span>
+            <div class="sc-value good" id="sumAttendance">&mdash;</div>
+            <div class="sc-sub" id="sumAttendanceSub">&mdash;</div>
+          </div>
+          <div class="summary-card">
+            <span class="sc-icon">&#9733;</span>
+            <span class="sc-label">General average</span>
+            <div class="sc-value" id="sumAverage">&mdash;</div>
+            <div class="sc-sub" id="sumAverageSub">&mdash;</div>
+          </div>
+          <div class="summary-card">
+            <span class="sc-icon">&#9776;</span>
+            <span class="sc-label">Open tasks</span>
+            <div class="sc-value" id="sumTasks">&mdash;</div>
+            <div class="sc-sub" id="sumTasksSub">&mdash;</div>
+          </div>
+        </div>
+
+        <div class="panel-grid">
+          <div class="panel">
+            <div class="panel-head">
+              <div><h3>Tuition fee status</h3><span class="sub" id="dashFeeSub">School year</span></div>
+              <button type="button" class="btn-sm" data-goto="fees">View breakdown</button>
+            </div>
+            <div class="panel-body">
+              <div class="bar light"><span id="dashFeeBar" style="width:0%"></span></div>
+              <div class="bar-caption"><span id="dashFeePaid">Paid: &mdash;</span><span id="dashFeeTotal">Assessed: &mdash;</span></div>
+              <p class="sc-sub" id="dashFeeDue" style="margin-top:12px">Next due date: &mdash;</p>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <div><h3>Quick actions</h3><span class="sub">Jump right in</span></div>
+            </div>
+            <div class="panel-body" style="display:flex;flex-direction:column;gap:10px">
+              <button type="button" class="btn-sm solid" data-goto="fees">Pay / record a tuition payment</button>
+              <button type="button" class="btn-sm" data-goto="grades">Check my report card</button>
+              <button type="button" class="btn-sm" data-goto="tasks">See pending assignments</button>
+              <button type="button" class="btn-sm" data-goto="profile">View my profile</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <div><h3>Latest announcements</h3><span class="sub">From the administration</span></div>
+            <button type="button" class="btn-sm" data-goto="news">See all</button>
+          </div>
+          <div class="panel-body flush" id="dashNews"></div>
+        </div>
+      </section>
+
+      <!-- ============ TUITION & FEES ============ -->
+      <section class="view" id="view-fees">
+        <div class="balance-hero" id="balanceHero">
+          <span class="bh-label">Outstanding balance</span>
+          <div class="bh-amount" id="bhAmount">&mdash;</div>
+          <div class="bh-sub" id="bhStatus">&mdash;</div>
+          <div class="bar"><span id="bhBar" style="width:0%"></span></div>
+          <div class="bh-stats">
+            <div><span>Assessed</span><strong id="bhAssessed">&mdash;</strong></div>
+            <div><span>Total paid</span><strong id="bhPaid">&mdash;</strong></div>
+            <div><span>Next due</span><strong id="bhDue">&mdash;</strong></div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <div><h3>Fee assessment breakdown</h3><span class="sub" id="feeYearSub">School year</span></div>
+          </div>
+          <div class="panel-body flush table-wrap">
+            <table class="data-table">
+              <thead><tr><th>Fee</th><th>Note</th><th class="num">Amount</th></tr></thead>
+              <tbody id="feeRows"></tbody>
+              <tfoot><tr><td colspan="2">Total assessed</td><td class="num" id="feeTotal">&mdash;</td></tr></tfoot>
+            </table>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <div><h3>Payment history</h3><span class="sub">Receipts posted by the treasurer</span></div>
+            <div style="display:flex;gap:8px">
+              <button type="button" class="btn-sm" id="btnPrint">Print statement</button>
+              <button type="button" class="btn-sm solid" id="btnPayToggle">+ Record payment</button>
+            </div>
+          </div>
+          <div class="panel-body flush" id="payPanel" hidden style="border-bottom:1px solid var(--border);background:var(--surface-2)">
+            <form class="pay-form" id="payForm" style="padding:20px">
+              <div class="form-field">
+                <label for="payAmount">Amount <span class="req">*</span></label>
+                <input class="input" type="number" id="payAmount" min="1" step="0.01" placeholder="0.00">
+                <span class="error">Enter an amount.</span>
+              </div>
+              <div class="form-field">
+                <label for="payMethod">Payment method</label>
+                <select id="payMethod">
+                  <option>Cash</option>
+                  <option>GCash</option>
+                  <option>Bank transfer</option>
+                  <option>Remittance</option>
+                </select>
+              </div>
+              <div class="form-field full">
+                <label for="payRef">Reference number</label>
+                <input class="input" type="text" id="payRef" placeholder="e.g. GC-1234567 (optional)">
+              </div>
+              <div class="full" style="display:flex;gap:10px;justify-content:flex-end">
+                <button type="button" class="btn-sm" id="btnPayCancel">Cancel</button>
+                <button type="submit" class="btn-sm solid">Submit payment</button>
+              </div>
+            </form>
+          </div>
+          <div class="panel-body flush table-wrap">
+            <table class="data-table">
+              <thead><tr><th>Date</th><th>Reference</th><th>Method</th><th class="num">Amount</th></tr></thead>
+              <tbody id="payRows"></tbody>
+              <tfoot><tr><td colspan="3">Total paid</td><td class="num" id="payTotal">&mdash;</td></tr></tfoot>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ GRADES ============ -->
+      <section class="view" id="view-grades">
+        <div class="grade-hero">
+          <div class="grade-badge"><div class="gb-num" id="gAverage">&mdash;</div><div class="gb-label">General average</div></div>
+          <div class="grade-badge"><div class="gb-num" id="gHighest">&mdash;</div><div class="gb-label">Highest grade</div></div>
+          <div class="grade-badge"><div class="gb-num" id="gSubjects">&mdash;</div><div class="gb-label">Subjects</div></div>
+          <div class="grade-badge"><div class="gb-num" id="gStanding" style="font-size:1.2rem;padding-top:8px">&mdash;</div><div class="gb-label">Standing</div></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <div><h3>Report card</h3><span class="sub" id="gradeSub">All subjects</span></div>
+            <button type="button" class="btn-sm" id="btnPrintGrades">Print</button>
+          </div>
+          <div class="panel-body flush table-wrap">
+            <table class="data-table">
+              <thead><tr><th>Subject</th><th class="num">Q1</th><th class="num">Q2</th><th class="num">Q3</th><th class="num">Q4</th><th class="num">Final</th><th>Remarks</th></tr></thead>
+              <tbody id="gradeRows"></tbody>
+              <tfoot><tr><td>General average</td><td colspan="4"></td><td class="num" id="gradeFootAvg">&mdash;</td><td id="gradeFootRemarks">&mdash;</td></tr></tfoot>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ ATTENDANCE ============ -->
+      <section class="view" id="view-attendance">
+        <div class="summary-grid">
+          <div class="summary-card"><span class="sc-icon">&#10003;</span><span class="sc-label">Days present</span><div class="sc-value good" id="attPresent">&mdash;</div><div class="sc-sub">this term</div></div>
+          <div class="summary-card"><span class="sc-icon">&#10007;</span><span class="sc-label">Days absent</span><div class="sc-value alert" id="attAbsent">&mdash;</div><div class="sc-sub">this term</div></div>
+          <div class="summary-card"><span class="sc-icon">&#9200;</span><span class="sc-label">Late arrivals</span><div class="sc-value" id="attLate">&mdash;</div><div class="sc-sub">this term</div></div>
+          <div class="summary-card"><span class="sc-icon">&#9635;</span><span class="sc-label">Attendance rate</span><div class="sc-value good" id="attRate">&mdash;</div><div class="sc-sub">target: 90% and above</div></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <div><h3>Daily record</h3><span class="sub">Most recent school days</span></div>
+          </div>
+          <div class="panel-body flush table-wrap">
+            <table class="data-table">
+              <thead><tr><th>Date</th><th>Day</th><th>Status</th><th>Time in</th></tr></thead>
+              <tbody id="attRows"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ SCHEDULE ============ -->
+      <section class="view" id="view-schedule">
+        <div class="panel">
+          <div class="panel-head">
+            <div><h3>Weekly class schedule</h3><span class="sub" id="schedSub">School year</span></div>
+          </div>
+          <div class="panel-body flush table-wrap">
+            <table class="data-table">
+              <thead><tr><th>Time</th><th>Days</th><th>Subject</th><th>Teacher</th><th>Room</th></tr></thead>
+              <tbody id="schedRows"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><div><h3>Important times</h3><span class="sub">Daily routines</span></div></div>
+          <div class="panel-body">
+            <div class="info-list">
+              <div class="info-row"><span class="k">Flag ceremony</span><span class="v">7:30 AM &ndash; 7:45 AM</span></div>
+              <div class="info-row"><span class="k">Class hours</span><span class="v">7:45 AM &ndash; 3:00 PM</span></div>
+              <div class="info-row"><span class="k">Recess</span><span class="v">10:00 AM &ndash; 10:20 AM</span></div>
+              <div class="info-row"><span class="k">Weekend worship</span><span class="v">Saturday, 9:00 AM</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ ASSIGNMENTS ============ -->
+      <section class="view" id="view-tasks">
+        <div class="panel">
+          <div class="panel-head">
+            <div><h3>Assignments &amp; reminders</h3><span class="sub" id="taskSub">0 of 0 done</span></div>
+          </div>
+          <div class="panel-body" style="padding-bottom:0">
+            <div class="bar light"><span id="taskBar" style="width:0%"></span></div>
+            <div class="bar-caption"><span>Completion</span><span id="taskPct">0%</span></div>
+          </div>
+          <div class="panel-body flush">
+            <div class="todo-list" id="taskList"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ ANNOUNCEMENTS ============ -->
+      <section class="view" id="view-news">
+        <div class="panel">
+          <div class="panel-head">
+            <div><h3>School announcements</h3><span class="sub">Posted by the administration</span></div>
+          </div>
+          <div class="panel-body flush" id="newsList"></div>
+        </div>
+      </section>
+
+      <!-- ============ PROFILE ============ -->
+      <section class="view" id="view-profile">
+        <div class="profile-grid">
+          <div class="panel">
+            <div class="panel-head"><div><h3>Personal information</h3><span class="sub">From your registration survey</span></div></div>
+            <div class="panel-body"><div class="info-list" id="profPersonal"></div></div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><div><h3>Home address</h3><span class="sub">Mailing address on record</span></div></div>
+            <div class="panel-body"><div class="info-list" id="profAddress"></div></div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><div><h3>Student record</h3><span class="sub">Enrollment details</span></div></div>
+            <div class="panel-body"><div class="info-list" id="profStudent"></div></div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><div><h3>Parent / guardian</h3><span class="sub">Emergency contact</span></div></div>
+            <div class="panel-body"><div class="info-list" id="profGuardian"></div></div>
+          </div>
+          <div class="panel">
+            <div class="panel-head"><div><h3>Account</h3><span class="sub">Portal login details</span></div></div>
+            <div class="panel-body"><div class="info-list" id="profAccount"></div></div>
+          </div>
+        </div>
+        <p class="sc-sub" style="margin-top:6px">Need something changed? Visit the administration office with a valid ID, or contact the school treasurer for billing concerns.</p>
+      </section>
+
+    </main>
+
+  </div>
+
+  <footer>
+    <p>&copy; <span data-year></span> Norberto Bana Sr. Mem. SDA Elementary School. All rights reserved.</p>
+  </footer>
+
+  <script src="app.js"></script>
+  <script src="portal.js"></script>
+</body>
+</html>

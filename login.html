@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sign In / Create Account | NBANA SDA Elementary School</title>
+
+  <link rel="icon" type="image/png" href="logo.png">
+  <link rel="apple-touch-icon" href="logo.png">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Navigation -->
+  <nav class="navbar">
+    <a href="index.html" class="logo">
+      <img src="logo.png" alt="NBANA Logo" class="logo-img">
+      <span class="school-name">NBANA SDA Elementary</span>
+    </a>
+    <ul class="nav-links">
+      <li><a href="index.html">Home</a></li>
+      <li><a href="about.html">About</a></li>
+      <li><a href="students.html">Students</a></li>
+      <li><a href="index.html#announcements">Announcements</a></li>
+    </ul>
+    <div class="nav-auth"></div>
+  </nav>
+
+  <main class="auth-wrap">
+
+    <!-- Brand / info panel -->
+    <aside class="auth-brand">
+      <span class="brand-badge">&#9670; NBANA School Portal</span>
+      <h2>Everything your family needs, in one secure portal.</h2>
+      <p>Create your account by completing the short student information survey below. Your answers set up your official portal profile.</p>
+      <ul class="brand-perks">
+        <li>
+          <span class="p-icon">&#182;</span>
+          <div><strong>Tuition fee balance</strong><span>See your assessed fees, payments, and balance anytime.</span></div>
+        </li>
+        <li>
+          <span class="p-icon">&#9733;</span>
+          <div><strong>Grades &amp; attendance</strong><span>Track card ratings and daily attendance records.</span></div>
+        </li>
+        <li>
+          <span class="p-icon">&#9638;</span>
+          <div><strong>Schedule &amp; assignments</strong><span>Class timetable, tasks, and due dates at a glance.</span></div>
+        </li>
+        <li>
+          <span class="p-icon">&#9825;</span>
+          <div><strong>School announcements</strong><span>Never miss enrollment windows and campus events.</span></div>
+        </li>
+      </ul>
+    </aside>
+
+    <!-- Auth panel -->
+    <section class="auth-panel">
+      <div class="auth-card">
+
+        <div class="auth-tabs" role="tablist">
+          <button type="button" id="tabSignIn" class="active" role="tab">Sign In</button>
+          <button type="button" id="tabSignUp" role="tab">Create Account</button>
+        </div>
+
+        <!-- ============ SIGN IN ============ -->
+        <div class="auth-pane" id="paneSignIn">
+          <h3>Welcome back</h3>
+          <p class="hint">Sign in to open your school portal and check your tuition balance.</p>
+
+          <form id="signInForm" novalidate>
+            <div class="form-field">
+              <label for="loginId">Email or username <span class="req">*</span></label>
+              <input class="input" type="text" id="loginId" autocomplete="username" placeholder="juan.delacruz@nbana.edu.ph">
+              <span class="error" id="loginIdErr">Please enter your email or username.</span>
+            </div>
+
+            <div class="form-field">
+              <label for="loginPw">Password <span class="req">*</span></label>
+              <input class="input" type="password" id="loginPw" autocomplete="current-password" placeholder="Your password">
+              <span class="error" id="loginPwErr">Please enter your password.</span>
+            </div>
+
+            <button class="btn btn-primary btn-block btn-lg" type="submit">Sign In to Portal</button>
+          </form>
+
+          <div class="demo-box">
+            <b>Demo account</b><br>
+            Email: <b>juan.delacruz@nbana.edu.ph</b> &nbsp;&bull;&nbsp; Password: <b>nbana123</b>
+          </div>
+        </div>
+
+        <!-- ============ SIGN UP (survey wizard) ============ -->
+        <div class="auth-pane" id="paneSignUp" hidden>
+          <h3>Student information survey</h3>
+          <p class="hint">All 5 steps must be completed before your account can be created.</p>
+
+          <div class="wizard-progress">
+            <div class="wp-labels">
+              <span id="wpStep">Step 1 of 5 &middot; Personal</span>
+              <span id="wpPct">20%</span>
+            </div>
+            <div class="wp-track"><div class="wp-fill" id="wpFill"></div></div>
+          </div>
+
+          <form id="signupForm" novalidate>
+
+            <!-- STEP 1: Personal -->
+            <div class="wizard-step active" data-step="1">
+              <span class="step-tag">Part 1 &middot; Personal</span>
+              <h3>About the student</h3>
+              <p class="hint">Enter the name and personal details exactly as they appear on official documents.</p>
+
+              <div class="form-row">
+                <div class="form-field">
+                  <label for="f_first">First name <span class="req">*</span></label>
+                  <input class="input" type="text" id="f_first" placeholder="Juan">
+                  <span class="error">First name is required.</span>
+                </div>
+                <div class="form-field">
+                  <label for="f_middle">Middle name</label>
+                  <input class="input" type="text" id="f_middle" placeholder="D.">
+                </div>
+              </div>
+
+              <div class="form-field">
+                <label for="f_last">Last name <span class="req">*</span></label>
+                <input class="input" type="text" id="f_last" placeholder="Dela Cruz">
+                <span class="error">Last name is required.</span>
+              </div>
+
+              <div class="form-row">
+                <div class="form-field">
+                  <label for="f_birth">Date of birth <span class="req">*</span></label>
+                  <input class="input" type="date" id="f_birth">
+                  <span class="error">A valid date of birth is required.</span>
+                </div>
+                <div class="form-field">
+                  <label for="f_age">Age</label>
+                  <input class="input" type="text" id="f_age" readonly placeholder="Auto-computed">
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div class="form-field">
+                  <label for="f_gender">Sex <span class="req">*</span></label>
+                  <select id="f_gender">
+                    <option value="">Select...</option>
+                    <option>Male</option>
+                    <option>Female</option>
+                  </select>
+                  <span class="error">Please select one.</span>
+                </div>
+                <div class="form-field">
+                  <label for="f_civil">Civil status</label>
+                  <select id="f_civil">
+                    <option>Single</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div class="form-field">
+                  <label for="f_religion">Religion</label>
+                  <input class="input" type="text" id="f_religion" placeholder="Seventh-day Adventist">
+                </div>
+                <div class="form-field">
+                  <label for="f_nation">Nationality</label>
+                  <input class="input" type="text" id="f_nation" value="Filipino">
+                </div>
+              </div>
+            </div>
+
+            <!-- STEP 2: Address & contact -->
+            <div class="wizard-step" data-step="2">
+              <span class="step-tag">Part 2 &middot; Address</span>
+              <h3>Home address &amp; contact</h3>
+              <p class="hint">Where can the school reach you and your family?</p>
+
+              <div class="form-field">
+                <label for="f_house">House no. / street <span class="req">*</span></label>
+                <input class="input" type="text" id="f_house" placeholder="123 Mabini St.">
+                <span class="error">Street address is required.</span>
+              </div>
+
+              <div class="form-row">
+                <div class="form-field">
+                  <label for="f_brgy">Barangay <span class="req">*</span></label>
+                  <input class="input" type="text" id="f_brgy" placeholder="San Jose">
+                  <span class="error">Barangay is required.</span>
+                </div>
+                <div class="form-field">
+                  <label for="f_city">City / Municipality <span class="req">*</span></label>
+                  <input class="input" type="text" id="f_city" placeholder="Zamboanga City">
+                  <span class="error">City / Municipality is required.</span>
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div class="form-field">
+                  <label for="f_prov">Province <span class="req">*</span></label>
+                  <input class="input" type="text" id="f_prov" placeholder="Zamboanga del Sur">
+                  <span class="error">Province is required.</span>
+                </div>
+                <div class="form-field">
+                  <label for="f_zip">ZIP code</label>
+                  <input class="input" type="text" id="f_zip" inputmode="numeric" maxlength="4" placeholder="7000">
+                </div>
+              </div>
+
+              <div class="form-field">
+                <label for="f_phone">Contact number <span class="req">*</span></label>
+                <input class="input" type="tel" id="f_phone" placeholder="09XX XXX XXXX">
+                <span class="error">A valid contact number is required (at least 7 digits).</span>
+              </div>
+            </div>
+
+            <!-- STEP 3: Student & guardian -->
+            <div class="wizard-step" data-step="3">
+              <span class="step-tag">Part 3 &middot; Schooling</span>
+              <h3>School &amp; guardian details</h3>
+              <p class="hint">Tell us the grade level the student will enroll in and who the parent or guardian is.</p>
+
+              <div class="form-row">
+                <div class="form-field">
+                  <label for="f_grade">Grade level <span class="req">*</span></label>
+                  <select id="f_grade">
+                    <option value="">Select...</option>
+                    <option>Kinder 1</option>
+                    <option>Kinder 2</option>
+                    <option>Grade 1</option>
+                    <option>Grade 2</option>
+                    <option>Grade 3</option>
+                    <option>Grade 4</option>
+                    <option>Grade 5</option>
+                    <option>Grade 6</option>
+                  </select>
+                  <span class="error">Please select a grade level.</span>
+                </div>
+                <div class="form-field">
+                  <label for="f_section">Section</label>
+                  <input class="input" type="text" id="f_section" placeholder="Mabini">
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div class="form-field">
+                  <label for="f_year">School year</label>
+                  <input class="input" type="text" id="f_year" value="2026-2027">
+                </div>
+                <div class="form-field">
+                  <label for="f_sem">Semester</label>
+                  <select id="f_sem">
+                    <option>First Semester</option>
+                    <option>Second Semester</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="form-field">
+                <label for="f_lrn">Learner Reference Number (LRN)</label>
+                <input class="input" type="text" id="f_lrn" inputmode="numeric" maxlength="12" placeholder="12-digit LRN (optional)">
+              </div>
+
+              <div class="form-row">
+                <div class="form-field">
+                  <label for="f_gname">Parent / guardian name <span class="req">*</span></label>
+                  <input class="input" type="text" id="f_gname" placeholder="Rosa M. Dela Cruz">
+                  <span class="error">Guardian name is required.</span>
+                </div>
+                <div class="form-field">
+                  <label for="f_grel">Relationship <span class="req">*</span></label>
+                  <select id="f_grel">
+                    <option value="">Select...</option>
+                    <option>Mother</option>
+                    <option>Father</option>
+                    <option>Grandparent</option>
+                    <option>Legal Guardian</option>
+                    <option>Other</option>
+                  </select>
+                  <span class="error">Please select the relationship.</span>
+                </div>
+              </div>
+
+              <div class="form-field">
+                <label for="f_gphone">Guardian contact number <span class="req">*</span></label>
+                <input class="input" type="tel" id="f_gphone" placeholder="09XX XXX XXXX">
+                <span class="error">A valid guardian contact number is required.</span>
+              </div>
+            </div>
+
+            <!-- STEP 4: Credentials -->
+            <div class="wizard-step" data-step="4">
+              <span class="step-tag">Part 4 &middot; Login</span>
+              <h3>Set your login credentials</h3>
+              <p class="hint">This is what you will use to sign in to the portal.</p>
+
+              <div class="form-field">
+                <label for="f_email">Email address <span class="req">*</span></label>
+                <input class="input" type="email" id="f_email" autocomplete="email" placeholder="you@example.com">
+                <span class="error">Enter a valid email address.</span>
+              </div>
+
+              <div class="form-row">
+                <div class="form-field">
+                  <label for="f_pw">Password <span class="req">*</span></label>
+                  <input class="input" type="password" id="f_pw" autocomplete="new-password" placeholder="At least 6 characters">
+                  <span class="error">Password must be at least 6 characters.</span>
+                </div>
+                <div class="form-field">
+                  <label for="f_pw2">Confirm password <span class="req">*</span></label>
+                  <input class="input" type="password" id="f_pw2" autocomplete="new-password" placeholder="Repeat password">
+                  <span class="error">Passwords do not match.</span>
+                </div>
+              </div>
+
+              <label class="checkline">
+                <input type="checkbox" id="f_agree">
+                <span>I confirm that the information above is correct and I agree to the school's acceptable use and privacy policy for the NBANA School Portal.</span>
+              </label>
+              <span class="error" id="agreeErr">You must agree before creating an account.</span>
+            </div>
+
+            <!-- STEP 5: Review -->
+            <div class="wizard-step" data-step="5">
+              <span class="step-tag">Part 5 &middot; Review</span>
+              <h3>Review your survey</h3>
+              <p class="hint">Check your answers below. Use Back to fix anything before creating your account.</p>
+
+              <div class="review-list" id="reviewList"></div>
+
+              <label class="checkline">
+                <input type="checkbox" id="f_confirm">
+                <span>I have reviewed my answers and they are accurate.</span>
+              </label>
+              <span class="error" id="confirmErr">Please confirm your answers.</span>
+            </div>
+
+            <!-- Wizard navigation -->
+            <div class="wizard-nav">
+              <button type="button" class="btn btn-navy" id="btnBack" hidden>&larr; Back</button>
+              <button type="button" class="btn btn-primary" id="btnNext">Next &rarr;</button>
+              <button type="submit" class="btn btn-primary" id="btnCreate" hidden>Create Account</button>
+            </div>
+
+          </form>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <footer>
+    <p>&copy; <span data-year></span> Norberto Bana Sr. Mem. SDA Elementary School. All rights reserved.</p>
+  </footer>
+
+  <script src="app.js"></script>
+  <script src="login.js"></script>
+</body>
+</html>
