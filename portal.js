@@ -179,9 +179,9 @@
       ' \u00b7 ' + d.toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' });
   }
 
-  function nextDueDate() {
+  function nextDueDate(t) {
     const now = new Date();
-    const day = (user.billing && user.billing.dueDay) || 15;
+    const day = ((t || user).billing && (t || user).billing.dueDay) || 15;
     const due = new Date(now.getFullYear(), now.getMonth(), day);
     if (now.getDate() > day) due.setMonth(due.getMonth() + 1);
     return due;
@@ -324,9 +324,79 @@
   }
 
   /* ---------------- Fees ---------------- */
+  let feesTargetId = null;
+  let feeEditing = false;
+  let feeDraft = null;
+
+  function nameOf(a) {
+    return a.fullName || [a.firstName, a.middleName, a.lastName].filter(Boolean).join(' ');
+  }
+
+  function feeTarget() {
+    if (!isPrincipal) return user;
+    const list = allStudents();
+    const t = list.find(a => a.id === feesTargetId) || list[0] || null;
+    if (t) feesTargetId = t.id;
+    return t;
+  }
+
+  function renderFeeRows(t) {
+    const s = NBANA.billingSummary(t);
+    if (feeEditing && feeDraft) {
+      $('feeRows').innerHTML = feeDraft.map((it, i) =>
+        '<tr><td><input class="input input-sm" data-fi="label" data-i="' + i + '" value="' + esc(it.label) + '"></td>' +
+        '<td><input class="input input-sm" data-fi="note" data-i="' + i + '" value="' + esc(it.note || '') + '"></td>' +
+        '<td class="num"><input class="input input-sm num-in" type="number" min="0" step="1" data-fi="amount" data-i="' + i + '" value="' + Number(it.amount) + '"> ' +
+        '<button type="button" class="btn-del" data-fdel="' + i + '" title="Remove fee">&times;</button></td></tr>'
+      ).join('') +
+      '<tr><td colspan="3"><button type="button" class="btn-sm" id="btnFeeAdd">+ Add fee item</button></td></tr>';
+
+      document.querySelectorAll('[data-fi]').forEach(inp => {
+        inp.addEventListener('input', () => {
+          const i = Number(inp.dataset.i);
+          if (inp.dataset.fi === 'amount') feeDraft[i].amount = Math.max(0, parseFloat(inp.value) || 0);
+          else feeDraft[i][inp.dataset.fi] = inp.value;
+          $('feeTotal').textContent = money(feeDraft.reduce((sum, x) => sum + (Number(x.amount) || 0), 0));
+        });
+      });
+      document.querySelectorAll('[data-fdel]').forEach(b => {
+        b.addEventListener('click', () => {
+          feeDraft.splice(Number(b.dataset.fdel), 1);
+          renderFeeRows(t);
+        });
+      });
+      const addBtn = $('btnFeeAdd');
+      if (addBtn) addBtn.addEventListener('click', () => {
+        feeDraft.push({ label: 'New fee', note: '', amount: 0 });
+        renderFeeRows(t);
+      });
+      $('feeTotal').textContent = money(feeDraft.reduce((sum, x) => sum + (Number(x.amount) || 0), 0));
+      return;
+    }
+
+    $('feeRows').innerHTML = s.items.map(i =>
+      '<tr><td><strong>' + esc(i.label) + '</strong></td><td>' + esc(i.note || '') + '</td><td class="num">' + money(i.amount) +
+      (isPrincipal ? ' <button type="button" class="btn-del" data-fdel-view="' + esc(i.label) + '" title="Remove fee">&times;</button>' : '') +
+      '</td></tr>'
+    ).join('');
+    $('feeTotal').textContent = money(s.assessed);
+
+    if (isPrincipal) {
+      document.querySelectorAll('[data-fdel-view]').forEach(b => {
+        b.addEventListener('click', () => {
+          t.billing.items = t.billing.items.filter(x => x.label !== b.dataset.fdelView);
+          saveUser(t);
+          renderFees();
+          NBANA.toast('Fee removed from ' + nameOf(t) + '\u2019s assessment.', 'success');
+        });
+      });
+    }
+  }
+
   function renderFees() {
-    const s = NBANA.billingSummary(user);
-    const due = nextDueDate();
+    const t = feeTarget() || user;
+    const s = NBANA.billingSummary(t);
+    const due = nextDueDate(t);
     const dueStr = due.toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' });
     const hero = $('balanceHero');
 
@@ -344,33 +414,81 @@
       $('bhStatus').textContent = 'Partially paid \u2014 ' + s.percent + '% of assessed fees settled.';
     }
 
-    $('feeYearSub').textContent = 'School year ' + (user.billing.schoolYear || schoolYear);
-    $('feeRows').innerHTML = s.items.map(i =>
-      '<tr><td><strong>' + i.label + '</strong></td><td>' + (i.note || '') + '</td><td class="num">' + money(i.amount) + '</td></tr>'
-    ).join('');
-    $('feeTotal').textContent = money(s.assessed);
+    $('feeYearSub').textContent = 'School year ' + ((t.billing && t.billing.schoolYear) || schoolYear) +
+      (isPrincipal ? ' \u00b7 ' + esc(nameOf(t)) : '');
+    renderFeeRows(t);
 
     const pays = s.payments.slice().sort((a, b) => new Date(b.date) - new Date(a.date));
     $('payRows').innerHTML = pays.length
       ? pays.map(p =>
           '<tr><td>' + fmtDate(p.date) + '</td><td>' + (p.ref || '&mdash;') + '</td>' +
-          '<td>' + p.method + (p.label ? ' <span class="pill pill-navy">' + p.label + '</span>' : '') + '</td>' +
-          '<td class="num">' + money(p.amount) + '</td></tr>'
+          '<td>' + p.method + (p.label ? ' <span class="pill pill-navy">' + esc(p.label) + '</span>' : '') + '</td>' +
+          '<td class="num">' + money(p.amount) +
+          (isPrincipal ? ' <button type="button" class="btn-del" data-pdel="' + esc(p.id) + '" title="Remove payment">&times;</button>' : '') +
+          '</td></tr>'
         ).join('')
       : '<tr><td colspan="4"><div class="empty-state"><span class="es-icon">&#128179;</span>No payments recorded yet.</div></td></tr>';
     $('payTotal').textContent = money(s.paid);
 
-    /* Dashboard mirror */
-    $('sumBalance').textContent = money(s.balance);
-    $('sumBalance').className = 'sc-value ' + (s.balance > 0 ? 'alert' : 'good');
-    $('sumBalanceSub').textContent = s.balance > 0 ? s.percent + '% paid \u00b7 due ' + dueStr : 'Account settled';
-    $('dashFeeSub').textContent = 'School year ' + (user.billing.schoolYear || schoolYear);
-    $('dashFeeBar').style.width = s.percent + '%';
-    $('dashFeePaid').textContent = 'Paid: ' + money(s.paid);
-    $('dashFeeTotal').textContent = 'Assessed: ' + money(s.assessed);
-    $('dashFeeDue').textContent = s.balance > 0
-      ? 'Next due date: ' + dueStr + ' \u00b7 Remaining: ' + money(s.balance)
-      : 'No remaining balance. Keep it up!';
+    if (isPrincipal) {
+      document.querySelectorAll('[data-pdel]').forEach(b => {
+        b.addEventListener('click', () => {
+          t.billing.payments = (t.billing.payments || []).filter(x => x.id !== b.dataset.pdel);
+          saveUser(t);
+          renderFees();
+          NBANA.toast('Payment removed.', 'success');
+        });
+      });
+      $('feesStudentSel').value = t.id;
+    }
+
+    /* Dashboard mirror (student view only) */
+    if (!isAdmin) {
+      $('sumBalance').textContent = money(s.balance);
+      $('sumBalance').className = 'sc-value ' + (s.balance > 0 ? 'alert' : 'good');
+      $('sumBalanceSub').textContent = s.balance > 0 ? s.percent + '% paid \u00b7 due ' + dueStr : 'Account settled';
+      $('dashFeeSub').textContent = 'School year ' + ((t.billing && t.billing.schoolYear) || schoolYear);
+      $('dashFeeBar').style.width = s.percent + '%';
+      $('dashFeePaid').textContent = 'Paid: ' + money(s.paid);
+      $('dashFeeTotal').textContent = 'Assessed: ' + money(s.assessed);
+      $('dashFeeDue').textContent = s.balance > 0
+        ? 'Next due date: ' + dueStr + ' \u00b7 Remaining: ' + money(s.balance)
+        : 'No remaining balance. Keep it up!';
+    }
+  }
+
+  function feesInit() {
+    if (!isPrincipal) return;
+    $('feesAdmin').hidden = false;
+    const list = allStudents();
+    $('feesStudentSel').innerHTML = list.map(a =>
+      '<option value="' + esc(a.id) + '">' + esc(nameOf(a)) + ' \u2014 ' + esc((a.student && a.student.gradeLevel) || 'No grade') + '</option>'
+    ).join('') || '<option>No students yet</option>';
+    $('btnFeeEdit').hidden = false;
+    $('feesStudentSel').addEventListener('change', (e) => {
+      feesTargetId = e.target.value;
+      feeEditing = false; feeDraft = null;
+      $('btnFeeEdit').textContent = 'Edit fees';
+      renderFees();
+    });
+    $('btnFeeEdit').addEventListener('click', () => {
+      const t = feeTarget();
+      if (!t) return;
+      if (!feeEditing) {
+        feeEditing = true;
+        feeDraft = JSON.parse(JSON.stringify((t.billing && t.billing.items) || []));
+        $('btnFeeEdit').textContent = 'Save fees';
+        $('btnFeeEdit').classList.add('solid');
+      } else {
+        t.billing.items = feeDraft;
+        saveUser(t);
+        feeEditing = false; feeDraft = null;
+        $('btnFeeEdit').textContent = 'Edit fees';
+        $('btnFeeEdit').classList.remove('solid');
+        NBANA.toast('Fee assessment updated for ' + nameOf(t) + '.', 'success');
+      }
+      renderFees();
+    });
   }
 
   /* Payment form */
