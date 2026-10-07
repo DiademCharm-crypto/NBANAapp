@@ -1,0 +1,5 @@
+# Freebuff workspace metadata
+.freebuff/
+
+# Node
+node_modules/
