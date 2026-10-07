@@ -713,3 +713,86 @@
   .view { display: none !important; }
   .view.active { display: block !important; }
 }
+
+/* ============ Admin & role features ============ */
+.admin-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  background: linear-gradient(135deg, rgba(13, 44, 84, 0.06), rgba(4, 120, 87, 0.07));
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.admin-bar label { font-weight: 600; font-size: 0.85rem; color: var(--muted, #6b7280); }
+.admin-tag {
+  background: var(--navy);
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 5px 11px;
+  border-radius: 999px;
+}
+.input-sm { padding: 7px 10px; font-size: 0.88rem; max-width: 280px; }
+.num-in { width: 92px; text-align: center; }
+
+.btn-del {
+  border: none;
+  background: rgba(224, 36, 94, 0.12);
+  color: #e0245e;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-weight: 700;
+  line-height: 1;
+  vertical-align: middle;
+}
+.btn-del:hover { background: #e0245e; color: #fff; }
+
+textarea.textarea { resize: vertical; min-height: 72px; width: 100%; box-sizing: border-box; }
+.edit-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(215px, 1fr)); gap: 14px; }
+.edit-grid .full { grid-column: 1 / -1; }
+.photo-preview { margin-top: 10px; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.photo-preview img { max-width: 260px; max-height: 180px; object-fit: cover; border-radius: 10px; border: 1px solid var(--border); }
+.composer-actions { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.att-add td { background: var(--surface-2); }
+.side-avatar.admin { background: linear-gradient(135deg, var(--navy), var(--teal-dark)); }
+input.invalid, select.invalid, textarea.invalid { border-color: #e0245e !important; }
+
+/* Feed cards (principal announcements + teacher posts) */
+.feed { display: flex; flex-direction: column; }
+.feed-post { padding: 18px 20px; border-bottom: 1px solid var(--border); }
+.feed-post:last-child { border-bottom: none; }
+.fp-head { display: flex; align-items: flex-start; gap: 12px; }
+.fp-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  flex: 0 0 42px;
+  background: var(--navy);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+.fp-who { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+.fp-meta { font-size: 0.78rem; color: var(--muted, #6b7280); display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.fp-title { margin: 12px 0 6px; font-size: 1.05rem; }
+.fp-tag { margin-bottom: 6px; display: inline-block; }
+.fp-body { margin: 8px 0; line-height: 1.6; }
+.fp-photo { width: 100%; max-height: 420px; object-fit: cover; border-radius: 12px; margin-top: 10px; border: 1px solid var(--border); }
+.fp-actions { display: flex; gap: 6px; align-items: center; margin-left: auto; }
+.fp-actions .btn-sm { padding: 4px 10px; font-size: 0.78rem; }
+
+@media (max-width: 640px) {
+  .admin-bar { flex-direction: column; align-items: stretch; }
+  .admin-bar .input-sm { max-width: none; width: 100%; }
+  .edit-grid { grid-template-columns: 1fr; }
+}
