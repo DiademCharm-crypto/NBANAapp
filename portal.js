@@ -202,7 +202,7 @@
     };
   }
 
-  /* ---------------- Announcements ---------------- */
+  /* ---------------- Announcements & posts (shared feed) ---------------- */
   const NEWS = [
     { tag: 'Enrollment', date: 'Ongoing', title: 'School Year Enrollment Open', body: 'Enrollment for the upcoming school year is now ongoing. Visit the administration office for requirements and inquiries.' },
     { tag: 'Event', date: 'Coming soon', title: 'Spiritual Emphasis Week', body: 'A week of worship, activities, and family night gathering. Watch this space for the final schedule.' },
@@ -215,8 +215,113 @@
       '<span class="tag" style="margin-left:8px">' + n.tag + '</span>' +
       '<h4>' + n.title + '</h4><p>' + n.body + '</p></div>';
   }
-  $('dashNews').innerHTML = NEWS.slice(0, 3).map(newsItemHtml).join('');
-  $('newsList').innerHTML = NEWS.map(newsItemHtml).join('');
+
+  function postHtml(p) {
+    const who = (p.author || '?').split(/\s+/).map(w => w.charAt(0)).slice(0, 2).join('').toUpperCase();
+    const roleCls = p.role === 'principal' ? 'pill-navy' : (p.role === 'teacher' ? 'pill-green' : 'pill-amber');
+    const roleTxt = p.role === 'principal' ? 'Principal' : (p.role === 'teacher' ? 'Teacher' : 'Student');
+    const audience = p.scope === 'all' ? 'Everyone' : p.scope;
+    const canDelete = isAdmin && (isPrincipal || p.authorId === user.id || p.scope === teacherGrade);
+    return '<article class="feed-post">' +
+      '<div class="fp-head">' +
+        '<span class="fp-avatar">' + esc(who) + '</span>' +
+        '<div class="fp-who"><strong>' + esc(p.author) + '</strong>' +
+          '<span class="fp-meta"><span class="pill ' + roleCls + '">' + roleTxt + '</span> ' +
+          '<span class="pill pill-navy">' + esc(audience) + '</span> \u00b7 ' + fmtStamp(p.date) + '</span></div>' +
+        (canDelete ? '<button type="button" class="btn-del" data-del-post="' + esc(p.id) + '" title="Delete post">&times;</button>' : '') +
+      '</div>' +
+      (p.title ? '<h4 class="fp-title">' + esc(p.title) + '</h4>' : '') +
+      (p.tag ? '<span class="pill pill-amber fp-tag">' + esc(p.tag) + '</span>' : '') +
+      (p.body ? '<p class="fp-body">' + esc(p.body).replace(/\n/g, '<br>') + '</p>' : '') +
+      (p.photo ? '<img class="fp-photo" src="' + p.photo + '" alt="Post photo">' : '') +
+    '</article>';
+  }
+
+  function renderFeed() {
+    const list = visibleFeed();
+    const html = list.length
+      ? list.map(postHtml).join('')
+      : NEWS.map(newsItemHtml).join('');
+    $('newsList').innerHTML = html;
+    $('newsFeedSub').textContent = isAdmin
+      ? (list.length + ' post' + (list.length === 1 ? '' : 's') + ' \u00b7 ' +
+         (isPrincipal ? 'your announcements reach every portal user' : 'you see all-school posts and posts for ' + teacherGrade))
+      : 'Posted by the administration and your teachers';
+    $('dashNews').innerHTML = (list.length ? list : NEWS).slice(0, 3).map(p =>
+      p.date && p.scope !== undefined ? postHtml(p) : newsItemHtml(p)).join('');
+
+    document.querySelectorAll('[data-del-post]').forEach(b => {
+      b.addEventListener('click', () => {
+        saveFeed(loadFeed().filter(x => x.id !== b.dataset.delPost));
+        renderFeed();
+        if (typeof renderAdminDash === 'function') renderAdminDash();
+        NBANA.toast('Post deleted.', 'success');
+      });
+    });
+  }
+
+  /* ---------------- Composer (principal: all users, teacher: own grade) ---------------- */
+  let pendingPhoto = null;
+
+  function composerSetup() {
+    if (!isAdmin) return;
+    $('btnCompose').hidden = false;
+    $('composerPanel').hidden = true;
+    $('composerTitle').textContent = isPrincipal ? 'New announcement' : 'New post for ' + teacherGrade;
+    $('composerAudience').textContent = 'Audience: ' +
+      (isPrincipal ? 'all users \u2014 students, teachers, and admins' : teacherGrade + ' students only');
+    $('composerHint').textContent = isPrincipal
+      ? 'Everyone will see this, including teacher accounts.'
+      : 'Only students enrolled in ' + teacherGrade + ' will see this post.';
+
+    $('btnCompose').addEventListener('click', () => {
+      $('composerPanel').hidden = !$('composerPanel').hidden;
+      if (!$('composerPanel').hidden) $('postBody').focus();
+    });
+
+    $('postPhoto').addEventListener('change', (e) => {
+      readImage(e.target.files[0], (data) => {
+        pendingPhoto = data;
+        $('photoPreview').hidden = !data;
+        if (data) $('photoImg').src = data;
+      });
+    });
+    $('photoRemove').addEventListener('click', () => {
+      pendingPhoto = null;
+      $('postPhoto').value = '';
+      $('photoPreview').hidden = true;
+    });
+
+    $('composerForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const bodyEl = $('postBody');
+      const ok = bodyEl.value.trim() !== '';
+      bodyEl.classList.toggle('invalid', !ok);
+      bodyEl.parentElement.querySelector('.error').classList.toggle('show', !ok);
+      if (!ok) { NBANA.toast('Please write a message before posting.', 'error'); return; }
+
+      const feed = loadFeed();
+      feed.unshift({
+        id: 'p_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+        authorId: user.id,
+        author: user.fullName || user.firstName,
+        role: role,
+        scope: isPrincipal ? 'all' : teacherGrade,
+        title: $('postTitle').value.trim(),
+        body: bodyEl.value.trim(),
+        photo: pendingPhoto,
+        date: nowStamp()
+      });
+      saveFeed(feed);
+      $('composerForm').reset();
+      pendingPhoto = null;
+      $('photoPreview').hidden = true;
+      $('composerPanel').hidden = true;
+      renderFeed();
+      renderAdminDash();
+      NBANA.toast(isPrincipal ? 'Announcement posted to all users.' : 'Post shared with ' + teacherGrade + ' students.', 'success');
+    });
+  }
 
   /* ---------------- Fees ---------------- */
   function renderFees() {
