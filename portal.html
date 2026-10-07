@@ -41,6 +41,7 @@
 
       <nav class="side-nav" id="sideNav">
         <button type="button" class="active" data-view="dashboard"><span class="s-icon">&#8962;</span>Dashboard</button>
+        <button type="button" data-view="students" hidden><span class="s-icon">&#9679;</span>Students</button>
         <button type="button" data-view="fees"><span class="s-icon">&#8369;</span>Tuition &amp; Fees</button>
         <button type="button" data-view="grades"><span class="s-icon">&#9733;</span>Grades</button>
         <button type="button" data-view="attendance"><span class="s-icon">&#10003;</span>Attendance</button>
@@ -141,6 +142,11 @@
 
       <!-- ============ TUITION & FEES ============ -->
       <section class="view" id="view-fees">
+        <div class="admin-bar" id="feesAdmin" hidden>
+          <span class="admin-tag">Admin mode</span>
+          <label for="feesStudentSel">Editing student</label>
+          <select id="feesStudentSel" class="input input-sm"></select>
+        </div>
         <div class="balance-hero" id="balanceHero">
           <span class="bh-label">Outstanding balance</span>
           <div class="bh-amount" id="bhAmount">&mdash;</div>
@@ -156,6 +162,7 @@
         <div class="panel">
           <div class="panel-head">
             <div><h3>Fee assessment breakdown</h3><span class="sub" id="feeYearSub">School year</span></div>
+            <button type="button" class="btn-sm" id="btnFeeEdit" hidden>Edit fees</button>
           </div>
           <div class="panel-body flush table-wrap">
             <table class="data-table">
@@ -212,6 +219,14 @@
 
       <!-- ============ GRADES ============ -->
       <section class="view" id="view-grades">
+        <div class="admin-bar" id="gradesAdmin" hidden>
+          <span class="admin-tag">Admin mode</span>
+          <label for="gradesStudentSel">Student</label>
+          <select id="gradesStudentSel" class="input input-sm"></select>
+          <button type="button" class="btn-sm" id="btnGradeEdit">Enter grades</button>
+          <button type="button" class="btn-sm solid" id="btnGradeSave" hidden>Save</button>
+          <button type="button" class="btn-sm" id="btnGradeCancel" hidden>Cancel</button>
+        </div>
         <div class="grade-hero">
           <div class="grade-badge"><div class="gb-num" id="gAverage">&mdash;</div><div class="gb-label">General average</div></div>
           <div class="grade-badge"><div class="gb-num" id="gHighest">&mdash;</div><div class="gb-label">Highest grade</div></div>
@@ -236,6 +251,14 @@
 
       <!-- ============ ATTENDANCE ============ -->
       <section class="view" id="view-attendance">
+        <div class="admin-bar" id="attAdmin" hidden>
+          <span class="admin-tag">Admin mode</span>
+          <label for="attStudentSel">Student</label>
+          <select id="attStudentSel" class="input input-sm"></select>
+          <button type="button" class="btn-sm" id="btnAttEdit">Mark attendance</button>
+          <button type="button" class="btn-sm solid" id="btnAttSave" hidden>Save</button>
+          <button type="button" class="btn-sm" id="btnAttCancel" hidden>Cancel</button>
+        </div>
         <div class="summary-grid">
           <div class="summary-card"><span class="sc-icon">&#10003;</span><span class="sc-label">Days present</span><div class="sc-value good" id="attPresent">&mdash;</div><div class="sc-sub">this term</div></div>
           <div class="summary-card"><span class="sc-icon">&#10007;</span><span class="sc-label">Days absent</span><div class="sc-value alert" id="attAbsent">&mdash;</div><div class="sc-sub">this term</div></div>
@@ -258,6 +281,14 @@
 
       <!-- ============ SCHEDULE ============ -->
       <section class="view" id="view-schedule">
+        <div class="admin-bar" id="schedAdmin" hidden>
+          <span class="admin-tag">Admin mode</span>
+          <label for="schedGradeSel">Grade level</label>
+          <select id="schedGradeSel" class="input input-sm"></select>
+          <button type="button" class="btn-sm" id="btnSchedEdit">Edit schedule</button>
+          <button type="button" class="btn-sm solid" id="btnSchedSave" hidden>Save</button>
+          <button type="button" class="btn-sm" id="btnSchedCancel" hidden>Cancel</button>
+        </div>
         <div class="panel">
           <div class="panel-head">
             <div><h3>Weekly class schedule</h3><span class="sub" id="schedSub">School year</span></div>
@@ -284,7 +315,40 @@
 
       <!-- ============ ASSIGNMENTS ============ -->
       <section class="view" id="view-tasks">
-        <div class="panel">
+        <div class="panel" id="assignManagePanel" hidden>
+          <div class="panel-head">
+            <div><h3>Class assignments</h3><span class="sub" id="assignSub">Assignments you give to your class</span></div>
+            <button type="button" class="btn-sm solid" id="btnAssignNew">+ New assignment</button>
+          </div>
+          <div class="panel-body" id="assignFormWrap" hidden style="border-bottom:1px solid var(--border);background:var(--surface-2)">
+            <form id="assignForm" class="pay-form" style="padding:20px">
+              <div class="form-field"><label for="asTitle">Title <span class="req">*</span></label>
+                <input class="input" type="text" id="asTitle" placeholder="e.g. Book report chapter 5">
+                <span class="error">Enter a title.</span></div>
+              <div class="form-field">
+                <label for="asSubject">Subject</label>
+                <select id="asSubject"></select>
+              </div>
+              <div class="form-field"><label for="asDue">Due date <span class="req">*</span></label>
+                <input class="input" type="date" id="asDue">
+                <span class="error">Pick a due date.</span></div>
+              <div class="form-field full"><label for="asDetails">Details</label>
+                <textarea class="input textarea" id="asDetails" rows="2" placeholder="Instructions for students (optional)"></textarea></div>
+              <div class="form-field full"><label for="asPhoto">Photo attachment</label>
+                <input type="file" id="asPhoto" accept="image/*">
+                <div class="photo-preview" id="asPhotoPreview" hidden>
+                  <img id="asPhotoImg" alt="Attachment preview">
+                  <button type="button" class="btn-sm" id="asPhotoRemove">Remove photo</button>
+                </div></div>
+              <div class="full" style="display:flex;gap:10px;justify-content:flex-end">
+                <button type="button" class="btn-sm" id="btnAssignCancel">Cancel</button>
+                <button type="submit" class="btn-sm solid" id="btnAssignSubmit">Post assignment</button>
+              </div>
+            </form>
+          </div>
+          <div class="panel-body flush"><div id="assignList" class="feed"></div></div>
+        </div>
+        <div class="panel" id="taskPanel">
           <div class="panel-head">
             <div><h3>Assignments &amp; reminders</h3><span class="sub" id="taskSub">0 of 0 done</span></div>
           </div>
@@ -300,19 +364,126 @@
 
       <!-- ============ ANNOUNCEMENTS ============ -->
       <section class="view" id="view-news">
+        <div class="panel" id="composerPanel" hidden>
+          <div class="panel-head">
+            <div><h3 id="composerTitle">New announcement</h3><span class="sub" id="composerAudience">Audience</span></div>
+          </div>
+          <div class="panel-body">
+            <form id="composerForm">
+              <div class="form-field">
+                <label for="postTitle">Title</label>
+                <input class="input" type="text" id="postTitle" placeholder="Optional headline">
+              </div>
+              <div class="form-field">
+                <label for="postBody">Message <span class="req">*</span></label>
+                <textarea class="input textarea" id="postBody" rows="3" placeholder="Write your message..."></textarea>
+                <span class="error">Please write a message.</span>
+              </div>
+              <div class="form-field">
+                <label for="postPhoto">Photo</label>
+                <input type="file" id="postPhoto" accept="image/*">
+                <div class="photo-preview" id="photoPreview" hidden>
+                  <img id="photoImg" alt="Post preview">
+                  <button type="button" class="btn-sm" id="photoRemove">Remove photo</button>
+                </div>
+              </div>
+              <div class="composer-actions">
+                <span class="sub" id="composerHint"></span>
+                <button type="submit" class="btn-sm solid">Post</button>
+              </div>
+            </form>
+          </div>
+        </div>
         <div class="panel">
           <div class="panel-head">
-            <div><h3>School announcements</h3><span class="sub">Posted by the administration</span></div>
+            <div><h3>School announcements</h3><span class="sub" id="newsFeedSub">Posted by the administration</span></div>
+            <button type="button" class="btn-sm solid" id="btnCompose" hidden>+ New post</button>
           </div>
-          <div class="panel-body flush" id="newsList"></div>
+          <div class="panel-body flush" id="newsList" class="feed"></div>
+        </div>
+      </section>
+
+      <!-- ============ STUDENTS (principal) ============ -->
+      <section class="view" id="view-students">
+        <div class="panel">
+          <div class="panel-head">
+            <div><h3>Student accounts</h3><span class="sub" id="stuCount">All enrolled students</span></div>
+            <button type="button" class="btn-sm solid" id="btnStuNew">+ New account</button>
+          </div>
+          <div class="panel-body flush table-wrap">
+            <table class="data-table">
+              <thead><tr><th>Name</th><th>Grade</th><th>Section</th><th>LRN</th><th class="num">Balance</th><th></th></tr></thead>
+              <tbody id="stuRows"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="panel" id="stuEditor" hidden>
+          <div class="panel-head">
+            <div><h3 id="stuEditorTitle">Edit student record</h3><span class="sub">Saved to the portal record</span></div>
+            <button type="button" class="btn-sm" id="btnStuClose">Close</button>
+          </div>
+          <div class="panel-body">
+            <form id="stuForm" class="edit-grid">
+              <div class="form-field"><label for="sfFirst">First name <span class="req">*</span></label><input class="input" id="sfFirst"><span class="error">Required.</span></div>
+              <div class="form-field"><label for="sfMiddle">Middle name</label><input class="input" id="sfMiddle"></div>
+              <div class="form-field"><label for="sfLast">Last name <span class="req">*</span></label><input class="input" id="sfLast"><span class="error">Required.</span></div>
+              <div class="form-field"><label for="sfEmail">Email <span class="req">*</span></label><input class="input" id="sfEmail" type="email"><span class="error">Valid email required.</span></div>
+              <div class="form-field"><label for="sfPhone">Contact number</label><input class="input" id="sfPhone"></div>
+              <div class="form-field"><label for="sfRole">Portal role</label>
+                <select id="sfRole"><option value="student">Student</option><option value="teacher">Teacher</option></select></div>
+              <div class="form-field" id="sfGradeField"><label for="sfGrade">Grade level</label><select id="sfGrade"></select></div>
+              <div class="form-field" id="sfSectionField"><label for="sfSection">Section</label><input class="input" id="sfSection"></div>
+              <div class="form-field" id="sfLrnField"><label for="sfLrn">LRN</label><input class="input" id="sfLrn"></div>
+              <div class="form-field" id="sfTGradeField" hidden><label for="sfTGrade">Assigned grade (teacher)</label><select id="sfTGrade"></select></div>
+              <div class="form-field"><label for="sfHouse">House / street</label><input class="input" id="sfHouse"></div>
+              <div class="form-field"><label for="sfBrgy">Barangay</label><input class="input" id="sfBrgy"></div>
+              <div class="form-field"><label for="sfCity">City / Municipality</label><input class="input" id="sfCity"></div>
+              <div class="form-field"><label for="sfProv">Province</label><input class="input" id="sfProv"></div>
+              <div class="form-field"><label for="sfGName">Guardian name</label><input class="input" id="sfGName"></div>
+              <div class="form-field"><label for="sfGRel">Guardian relationship</label><input class="input" id="sfGRel"></div>
+              <div class="form-field"><label for="sfGPhone">Guardian contact</label><input class="input" id="sfGPhone"></div>
+              <div class="form-field" id="sfPwField" hidden><label for="sfPw">Initial password <span class="req">*</span></label><input class="input" id="sfPw" type="text" placeholder="min 6 characters"><span class="error">Min 6 characters.</span></div>
+              <div class="full" style="display:flex;gap:10px;justify-content:flex-end">
+                <button type="button" class="btn-sm" id="btnStuCancel">Cancel</button>
+                <button type="submit" class="btn-sm solid">Save record</button>
+              </div>
+            </form>
+          </div>
         </div>
       </section>
 
       <!-- ============ PROFILE ============ -->
       <section class="view" id="view-profile">
+        <div class="panel" id="profEditor" hidden>
+          <div class="panel-head">
+            <div><h3>Edit my profile</h3><span class="sub">Changes are saved to your portal record</span></div>
+            <div style="display:flex;gap:8px">
+              <button type="button" class="btn-sm" id="btnProfCancel">Cancel</button>
+              <button type="button" class="btn-sm solid" id="btnProfSave">Save changes</button>
+            </div>
+          </div>
+          <div class="panel-body">
+            <div class="edit-grid">
+              <div class="form-field"><label for="pfFirst">First name</label><input class="input" id="pfFirst"></div>
+              <div class="form-field"><label for="pfMiddle">Middle name</label><input class="input" id="pfMiddle"></div>
+              <div class="form-field"><label for="pfLast">Last name</label><input class="input" id="pfLast"></div>
+              <div class="form-field"><label for="pfEmail">Email</label><input class="input" id="pfEmail" type="email"></div>
+              <div class="form-field"><label for="pfPhone">Contact number</label><input class="input" id="pfPhone"></div>
+              <div class="form-field"><label for="pfHouse">House / street</label><input class="input" id="pfHouse"></div>
+              <div class="form-field"><label for="pfBrgy">Barangay</label><input class="input" id="pfBrgy"></div>
+              <div class="form-field"><label for="pfCity">City / Municipality</label><input class="input" id="pfCity"></div>
+              <div class="form-field"><label for="pfProv">Province</label><input class="input" id="pfProv"></div>
+              <div class="form-field"><label for="pfZip">ZIP code</label><input class="input" id="pfZip"></div>
+              <div class="form-field"><label for="pfGName">Guardian name</label><input class="input" id="pfGName"></div>
+              <div class="form-field"><label for="pfGRel">Guardian relationship</label><input class="input" id="pfGRel"></div>
+              <div class="form-field"><label for="pfGPhone">Guardian contact</label><input class="input" id="pfGPhone"></div>
+            </div>
+          </div>
+        </div>
         <div class="profile-grid">
           <div class="panel">
-            <div class="panel-head"><div><h3>Personal information</h3><span class="sub">From your registration survey</span></div></div>
+            <div class="panel-head">            <div><h3>Personal information</h3><span class="sub">From your registration survey</span></div>
+            <button type="button" class="btn-sm" id="btnProfEdit" hidden>Edit profile</button></div>
             <div class="panel-body"><div class="info-list" id="profPersonal"></div></div>
           </div>
           <div class="panel">
