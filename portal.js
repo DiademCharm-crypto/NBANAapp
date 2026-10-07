@@ -510,26 +510,27 @@
     amountEl.parentElement.querySelector('.error').classList.toggle('show', !ok);
     if (!ok) { NBANA.toast('Please enter a valid payment amount.', 'error'); return; }
 
-    const s = NBANA.billingSummary(user);
+    const t = feeTarget() || user;
+    const s = NBANA.billingSummary(t);
     if (amount > s.balance && s.balance > 0) {
       NBANA.toast('Amount exceeds the remaining balance of ' + money(s.balance) + '.', 'error');
       return;
     }
 
-    user.billing.payments.push({
+    t.billing.payments.push({
       id: 'p_' + Date.now().toString(36),
       date: new Date().toISOString().slice(0, 10),
       ref: $('payRef').value.trim() || ('PORTAL-' + Date.now().toString(36).toUpperCase()),
       method: $('payMethod').value,
       amount: amount,
-      label: 'Portal payment',
+      label: isPrincipal ? 'Posted by admin' : 'Portal payment',
       status: 'Posted'
     });
-    saveUser(user);
+    saveUser(t);
     $('payForm').reset();
     $('payPanel').hidden = true;
     renderFees();
-    NBANA.toast('Payment of ' + money(amount) + ' recorded. Thank you!', 'success');
+    NBANA.toast('Payment of ' + money(amount) + ' recorded' + (isPrincipal ? ' for ' + nameOf(t) : '') + '. Thank you!', 'success');
   });
 
   /* ---------------- Student data (deterministic demo records) ---------------- */
@@ -555,15 +556,39 @@
         ? ['English', 'Mathematics', 'Science', 'Filipino', 'Social Studies', 'Spiritual Life', 'MAPEH', 'Computer Skills']
         : ['English', 'Mathematics', 'Science', 'Filipino', 'Social Studies', 'Spiritual Life', 'MAPEH']);
 
+  /* Subject / adviser lookups for any grade (used when admins edit others) */
+  function subjectsFor(gl) {
+    if (/^Kinder/i.test(gl || '')) return ['Language', 'Arithmetic', 'Motor Skills', 'Spiritual Life', 'Art & Music', 'Physical Education'];
+    return (['Grade 4', 'Grade 5', 'Grade 6'].indexOf(gl) > -1
+      ? ['English', 'Mathematics', 'Science', 'Filipino', 'Social Studies', 'Spiritual Life', 'MAPEH', 'Computer Skills']
+      : ['English', 'Mathematics', 'Science', 'Filipino', 'Social Studies', 'Spiritual Life', 'MAPEH']);
+  }
+  function adviserFor(gl) { return TEACHERS[gl] || 'Class Adviser'; }
+
   function row(k, v) {
     return '<div class="info-row"><span class="k">' + k + '</span><span class="v">' + (v || '&mdash;') + '</span></div>';
   }
 
   /* ---------------- Grades ---------------- */
-  function computeGrades() {
-    const rng = makeRng(seedOf(user.id + gradeLevel + 'grades'));
-    return SUBJECTS.map(name => {
-      const q = [0, 0, 0, 0].map(() => 76 + Math.floor(rng() * 23));
+  let gradesTargetId = null;
+  let gradeEditing = false;
+
+  function gradeTarget() {
+    if (!isAdmin) return user;
+    const list = studentsInScope();
+    const t = list.find(a => a.id === gradesTargetId) || list[0] || null;
+    if (t) gradesTargetId = t.id;
+    return t;
+  }
+
+  function computeGrades(acct) {
+    const gl = (acct.student && acct.student.gradeLevel) || gradeLevel;
+    const subs = subjectsFor(gl);
+    const stored = loadMap(K.grades)[acct.id] || null;
+    const rng = makeRng(seedOf(acct.id + gl + 'grades'));
+    return subs.map(name => {
+      let q = [0, 0, 0, 0].map(() => 76 + Math.floor(rng() * 23));
+      if (stored && stored[name]) q = stored[name].slice(0, 4).map(v => Number(v) || 0);
       const final = Math.round(q.reduce((a, b) => a + b, 0) / 4);
       const remarks = final >= 90 ? 'With Merit' : final >= 85 ? 'Good' : final >= 75 ? 'Passed' : 'Needs Review';
       const pill = final >= 85 ? 'pill-green' : final >= 75 ? 'pill-navy' : 'pill-red';
@@ -572,7 +597,12 @@
   }
 
   function renderGrades() {
-    const grades = computeGrades();
+    const t = gradeTarget();
+    if (!t) {
+      $('gradeRows').innerHTML = '<tr><td colspan="7"><div class="empty-state">No students to display.</div></td></tr>';
+      return 0;
+    }
+    const grades = computeGrades(t);
     const avg = Math.round(grades.reduce((s, g) => s + g.final, 0) / grades.length);
     const highest = grades.reduce((m, g) => Math.max(m, g.final), 0);
     const standing = avg >= 90 ? 'With Honors' : avg >= 85 ? 'High' : avg >= 75 ? 'Passing' : 'Review';
@@ -581,19 +611,77 @@
     $('gHighest').textContent = highest;
     $('gSubjects').textContent = grades.length;
     $('gStanding').textContent = standing;
-    $('gradeSub').textContent = gradeLevel + ' \u2022 ' + section + ' \u2022 ' + schoolYear;
+    const tGl = (t.student && t.student.gradeLevel) || gradeLevel;
+    const tSec = (t.student && t.student.section) || section;
+    $('gradeSub').textContent = (isAdmin ? esc(nameOf(t)) + ' \u00b7 ' : '') +
+      tGl + ' \u00b7 ' + tSec + ' \u00b7 ' + schoolYear;
     $('gradeRows').innerHTML = grades.map(g =>
-      '<tr><td><strong>' + g.name + '</strong></td>' +
-      g.q.map(v => '<td class="num">' + v + '</td>').join('') +
+      '<tr><td><strong>' + esc(g.name) + '</strong></td>' +
+      (gradeEditing
+        ? g.q.map((v, qi) => '<td class="num"><input class="input input-sm num-in" type="number" min="0" max="100" data-gsub="' + esc(g.name) + '" data-gq="' + qi + '" value="' + v + '"></td>').join('')
+        : g.q.map(v => '<td class="num">' + v + '</td>').join('')) +
       '<td class="num"><strong>' + g.final + '</strong></td>' +
       '<td><span class="pill ' + g.pill + '">' + g.remarks + '</span></td></tr>'
     ).join('');
     $('gradeFootAvg').textContent = avg;
     $('gradeFootRemarks').textContent = standing;
 
-    $('sumAverage').textContent = avg;
-    $('sumAverageSub').textContent = standing + ' \u00b7 adviser: ' + adviser;
+    if (!isAdmin) {
+      $('sumAverage').textContent = avg;
+      $('sumAverageSub').textContent = standing + ' \u00b7 adviser: ' + adviser;
+    }
     return avg;
+  }
+
+  function gradeEditButtons() {
+    $('btnGradeEdit').hidden = gradeEditing;
+    $('btnGradeSave').hidden = !gradeEditing;
+    $('btnGradeCancel').hidden = !gradeEditing;
+  }
+
+  function gradesInit() {
+    if (!isAdmin) return;
+    $('gradesAdmin').hidden = false;
+    const list = studentsInScope();
+    $('gradesStudentSel').innerHTML = list.map(a =>
+      '<option value="' + esc(a.id) + '">' + esc(nameOf(a)) + ' \u2014 ' + esc((a.student && a.student.section) || 'Section') + '</option>'
+    ).join('') || '<option>No students in this class</option>';
+    $('gradesStudentSel').addEventListener('change', (e) => {
+      gradesTargetId = e.target.value;
+      gradeEditing = false; gradeEditButtons();
+      renderGrades();
+    });
+    $('btnGradeEdit').addEventListener('click', () => {
+      if (!gradeTarget()) return;
+      gradeEditing = true; gradeEditButtons(); renderGrades();
+    });
+    $('btnGradeCancel').addEventListener('click', () => {
+      gradeEditing = false; gradeEditButtons(); renderGrades();
+    });
+    $('btnGradeSave').addEventListener('click', () => {
+      const t = gradeTarget();
+      if (!t) return;
+      const map = loadMap(K.grades);
+      const record = map[t.id] || {};
+      let ok = true;
+      document.querySelectorAll('[data-gsub]').forEach(inp => {
+        const v = parseFloat(inp.value);
+        const bad = isNaN(v) || v < 0 || v > 100;
+        inp.classList.toggle('invalid', bad);
+        if (bad) ok = false;
+        else {
+          if (!record[inp.dataset.gsub]) record[inp.dataset.gsub] = [0, 0, 0, 0];
+          record[inp.dataset.gsub][Number(inp.dataset.gq)] = v;
+        }
+      });
+      if (!ok) { NBANA.toast('Grades must be numbers from 0 to 100.', 'error'); return; }
+      map[t.id] = record;
+      saveMap(K.grades, map);
+      gradeEditing = false; gradeEditButtons();
+      renderGrades();
+      renderAdminDash();
+      NBANA.toast('Grades saved for ' + nameOf(t) + '.', 'success');
+    });
   }
 
   /* ---------------- Attendance ---------------- */
