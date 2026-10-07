@@ -59,6 +59,8 @@ const NBANA = (() => {
     }, profile);
     account.passwordHash = hash(password);
     account.username = (profile.email || '').trim().toLowerCase();
+    account.role = profile.role || 'student';
+    if (account.role === 'teacher') account.assignedGrade = profile.assignedGrade || '';
     account.billing = defaultBilling();
     account.tasks = defaultTasks();
     accounts.push(account);
@@ -113,7 +115,6 @@ const NBANA = (() => {
   }
 
   function seedDemo() {
-    if (store.get(KEYS.seeded, false)) return;
     const accounts = getAccounts();
     if (!accounts.some(a => a.email === 'juan.delacruz@nbana.edu.ph')) {
       const demo = {
@@ -151,8 +152,59 @@ const NBANA = (() => {
         { id: 'p3', date: '2026-09-10', ref: 'CASH-091026', method: 'Cash', amount: 3300, label: '2nd installment', status: 'Posted' }
       ];
       accounts.push(demo);
-      saveAccounts(accounts);
     }
+
+    /* Demo admins: principal (full admin) + teacher (Grade 5 adviser) */
+    if (!accounts.some(a => a.email === 'principal@nbana.edu.ph')) {
+      accounts.push({
+        id: 'acc_prin0001',
+        firstName: 'Janice Rose B.',
+        middleName: '',
+        lastName: 'Beronas',
+        fullName: 'Janice Rose B. Beronas',
+        role: 'principal',
+        email: 'principal@nbana.edu.ph',
+        phone: '0917 000 0001',
+        address: {
+          house: 'Administration Office',
+          barangay: 'San Jose',
+          city: 'Zamboanga City',
+          province: 'Zamboanga Peninsula',
+          zip: '7000'
+        },
+        username: 'principal@nbana.edu.ph',
+        passwordHash: hash('nbana123'),
+        createdAt: new Date().toISOString(),
+        billing: defaultBilling(),
+        tasks: []
+      });
+    }
+    if (!accounts.some(a => a.email === 'joy.lomongo@nbana.edu.ph')) {
+      accounts.push({
+        id: 'acc_tchr0001',
+        firstName: 'Joy E.',
+        middleName: '',
+        lastName: 'Lomongo',
+        fullName: 'Joy E. Lomongo',
+        role: 'teacher',
+        assignedGrade: 'Grade 5',
+        email: 'joy.lomongo@nbana.edu.ph',
+        phone: '0917 000 0002',
+        address: {
+          house: 'Faculty House',
+          barangay: 'San Jose',
+          city: 'Zamboanga City',
+          province: 'Zamboanga Peninsula',
+          zip: '7000'
+        },
+        username: 'joy.lomongo@nbana.edu.ph',
+        passwordHash: hash('nbana123'),
+        createdAt: new Date().toISOString(),
+        billing: defaultBilling(),
+        tasks: []
+      });
+    }
+    saveAccounts(accounts);
     store.set(KEYS.seeded, true);
   }
 
