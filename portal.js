@@ -858,7 +858,17 @@
   }
 
   /* ---------------- Schedule ---------------- */
-  function renderSchedule() {
+  let schedGrade = null;
+  let schedEditing = false;
+  let schedDraft = null;
+
+  function currentSchedGrade() {
+    if (isTeacher) return teacherGrade;
+    if (isPrincipal) return schedGrade || GRADES[0];
+    return gradeLevel;
+  }
+
+  function defaultSlots(gl, room) {
     const slots = [
       { time: '7:45 \u2013 8:30 AM', days: 'Mon \u2013 Fri' },
       { time: '8:30 \u2013 9:15 AM', days: 'Mon \u2013 Fri' },
@@ -871,15 +881,103 @@
       { time: '1:15 \u2013 2:00 PM', days: 'Mon, Wed, Fri' },
       { time: '2:00 \u2013 2:45 PM', days: 'Daily', fixed: 'Clean-up & devotion' }
     ];
+    const subs = subjectsFor(gl);
+    const adv = adviserFor(gl);
     let si = 0;
-    const room = section && section !== 'TBD' ? 'Room ' + section : 'Homeroom';
-    $('schedRows').innerHTML = slots.map(s => {
-      const subject = s.fixed || SUBJECTS[si++ % SUBJECTS.length];
-      const teacher = s.fixed ? '\u2014' : adviser;
-      return '<tr><td><strong>' + s.time + '</strong></td><td>' + s.days + '</td><td>' + subject +
-        '</td><td>' + teacher + '</td><td>' + (s.fixed ? '\u2014' : room) + '</td></tr>';
-    }).join('');
-    $('schedSub').textContent = gradeLevel + ' \u2022 ' + section + ' \u2022 adviser: ' + adviser;
+    return slots.map(s => ({
+      time: s.time,
+      days: s.days,
+      subject: s.fixed || subs[si++ % subs.length],
+      teacher: s.fixed ? '\u2014' : adv,
+      room: s.fixed ? '\u2014' : room
+    }));
+  }
+
+  function scheduleRows(gl, room) {
+    const stored = loadMap(K.schedule)[gl];
+    return (stored && stored.length) ? stored : defaultSlots(gl, room);
+  }
+
+  function renderSchedule() {
+    const gl = currentSchedGrade();
+    const room = isAdmin ? 'Homeroom' : (section && section !== 'TBD' ? 'Room ' + section : 'Homeroom');
+    const rows = (schedEditing && schedDraft) ? schedDraft : scheduleRows(gl, room);
+    const FIELDS = ['time', 'days', 'subject', 'teacher', 'room'];
+
+    $('schedRows').innerHTML = rows.map((s, i) => {
+      if (schedEditing) {
+        const cells = FIELDS.map(f =>
+          '<td><input class="input input-sm" data-sf="' + f + '" data-i="' + i + '" value="' + esc(s[f]) + '"></td>'
+        ).join('');
+        return '<tr>' + cells.replace(/<\/td>$/, ' <button type="button" class="btn-del" data-sdel="' + i + '" title="Remove period">&times;</button></td>') + '</tr>';
+      }
+      return '<tr><td><strong>' + esc(s.time) + '</strong></td><td>' + esc(s.days) + '</td><td>' + esc(s.subject) +
+        '</td><td>' + esc(s.teacher) + '</td><td>' + esc(s.room) + '</td></tr>';
+    }).join('') + (schedEditing
+      ? '<tr><td colspan="5"><button type="button" class="btn-sm" id="btnSchedAdd">+ Add period</button></td></tr>'
+      : '');
+
+    if (schedEditing) {
+      document.querySelectorAll('[data-sf]').forEach(inp => {
+        inp.addEventListener('input', () => {
+          schedDraft[Number(inp.dataset.i)][inp.dataset.sf] = inp.value;
+        });
+      });
+      document.querySelectorAll('[data-sdel]').forEach(b => {
+        b.addEventListener('click', () => {
+          schedDraft.splice(Number(b.dataset.sdel), 1);
+          renderSchedule();
+        });
+      });
+      const addBtn = $('btnSchedAdd');
+      if (addBtn) addBtn.addEventListener('click', () => {
+        schedDraft.push({ time: 'New period', days: 'Mon \u2013 Fri', subject: subjectsFor(gl)[0], teacher: adviserFor(gl), room: 'Homeroom' });
+        renderSchedule();
+      });
+    }
+
+    $('schedSub').textContent = isAdmin
+      ? gl + ' \u00b7 adviser: ' + adviserFor(gl)
+      : gradeLevel + ' \u00b7 ' + section + ' \u00b7 adviser: ' + adviser;
+  }
+
+  function schedEditButtons() {
+    $('btnSchedEdit').hidden = schedEditing;
+    $('btnSchedSave').hidden = !schedEditing;
+    $('btnSchedCancel').hidden = !schedEditing;
+  }
+
+  function schedInit() {
+    if (!isAdmin) return;
+    $('schedAdmin').hidden = false;
+    const opts = isTeacher ? [teacherGrade] : GRADES;
+    $('schedGradeSel').innerHTML = opts.map(g => '<option>' + g + '</option>').join('');
+    if (isTeacher) $('schedGradeSel').disabled = true;
+    $('schedGradeSel').addEventListener('change', (e) => {
+      schedGrade = e.target.value;
+      schedEditing = false; schedDraft = null; schedEditButtons();
+      renderSchedule();
+    });
+    $('btnSchedEdit').addEventListener('click', () => {
+      schedEditing = true;
+      schedDraft = JSON.parse(JSON.stringify(scheduleRows(currentSchedGrade(), 'Homeroom')));
+      schedEditButtons(); renderSchedule();
+    });
+    $('btnSchedCancel').addEventListener('click', () => {
+      schedEditing = false; schedDraft = null; schedEditButtons(); renderSchedule();
+    });
+    $('btnSchedSave').addEventListener('click', () => {
+      const gl = currentSchedGrade();
+      if (!schedDraft.length) { NBANA.toast('A schedule needs at least one period.', 'error'); return; }
+      const bad = schedDraft.some(r => !r.time.trim() || !r.subject.trim());
+      if (bad) { NBANA.toast('Time and subject are required for every period.', 'error'); return; }
+      const map = loadMap(K.schedule);
+      map[gl] = schedDraft;
+      saveMap(K.schedule, map);
+      schedEditing = false; schedDraft = null; schedEditButtons();
+      renderSchedule();
+      NBANA.toast('Schedule updated for ' + gl + '.', 'success');
+    });
   }
 
   /* ---------------- Assignments ---------------- */
