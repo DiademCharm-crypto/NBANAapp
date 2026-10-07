@@ -114,8 +114,13 @@
   const initials = (user.firstName || '?').charAt(0) + (user.lastName || '').charAt(0);
   $('sideAvatar').textContent = initials.toUpperCase() || '?';
   $('sideName').textContent = fullName;
-  $('sideGrade').textContent = (user.student ? user.student.gradeLevel : 'Student') +
-    (user.student && user.student.section ? ' \u2022 ' + user.student.section : '');
+  if (isAdmin) {
+    $('sideGrade').textContent = isPrincipal ? 'Full Admin \u00b7 Principal' : 'Teacher \u00b7 ' + teacherGrade;
+    $('sideAvatar').classList.add('admin');
+  } else {
+    $('sideGrade').textContent = (user.student ? user.student.gradeLevel : 'Student') +
+      (user.student && user.student.section ? ' \u2022 ' + user.student.section : '');
+  }
 
   /* ---------------- Helpers ---------------- */
   function saveUser(updated) {
@@ -125,6 +130,53 @@
       accounts[i] = updated;
       NBANA.store.set(NBANA.KEYS.accounts, accounts);
     }
+  }
+
+  /* ---------------- Shared stores ---------------- */
+  function loadMap(key) { return NBANA.store.get(key, {}) || {}; }
+  function saveMap(key, map) { NBANA.store.set(key, map); }
+  function loadFeed() { return NBANA.store.get(K.feed, []) || []; }
+  function saveFeed(list) { NBANA.store.set(K.feed, list); }
+
+  /* A post is visible when: everyone (scope 'all'), or it targets my grade.
+     Principal announcements use scope 'all' so even teachers see them. */
+  function visibleFeed() {
+    const myGrade = isTeacher ? teacherGrade : (user.student && user.student.gradeLevel);
+    return loadFeed().filter(p =>
+      isPrincipal || p.scope === 'all' || (myGrade && p.scope === myGrade)
+    );
+  }
+
+  /* Compress an image to a data URL (keeps localStorage small) */
+  function readImage(file, cb) {
+    if (!file) { cb(null); return; }
+    if (!/^image\//.test(file.type)) { NBANA.toast('Please choose an image file.', 'error'); return; }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const max = 1280;
+        let w = img.width, h = img.height;
+        if (w > max || h > max) {
+          const k = Math.min(max / w, max / h);
+          w = Math.round(w * k); h = Math.round(h * k);
+        }
+        const c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        c.getContext('2d').drawImage(img, 0, 0, w, h);
+        cb(c.toDataURL('image/jpeg', 0.72));
+      };
+      img.onerror = () => NBANA.toast('Could not read that image.', 'error');
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function nowStamp() { return new Date().toISOString(); }
+  function fmtStamp(iso) {
+    const d = new Date(iso);
+    return d.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) +
+      ' \u00b7 ' + d.toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' });
   }
 
   function nextDueDate() {
