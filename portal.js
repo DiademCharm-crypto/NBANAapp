@@ -1249,9 +1249,71 @@
 
     $('profAccount').innerHTML =
       row('Login email', user.email) +
+      row('Portal role', isPrincipal ? '<span class="pill pill-navy">Full Admin \u00b7 Principal</span>' :
+        (isTeacher ? '<span class="pill pill-green">Teacher \u00b7 ' + esc(teacherGrade) + '</span>' :
+          '<span class="pill pill-amber">Student</span>')) +
       row('Member since', fmtDate(user.createdAt)) +
       row('Password', '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022') +
       row('Account status', '<span class="pill pill-green">Active</span>');
+  }
+
+  function profileInit() {
+    if (!isAdmin) return;
+    $('btnProfEdit').hidden = false;
+    /* Admins have no enrollment record of their own */
+    const stuPanel = $('profStudent').closest('.panel');
+    if (stuPanel) stuPanel.hidden = true;
+
+    $('btnProfEdit').addEventListener('click', () => {
+      const a = user.address || {};
+      const g = user.guardian || {};
+      $('pfFirst').value = user.firstName || '';
+      $('pfMiddle').value = user.middleName || '';
+      $('pfLast').value = user.lastName || '';
+      $('pfEmail').value = user.email || '';
+      $('pfPhone').value = user.phone || '';
+      $('pfHouse').value = a.house || '';
+      $('pfBrgy').value = a.barangay || '';
+      $('pfCity').value = a.city || '';
+      $('pfProv').value = a.province || '';
+      $('pfZip').value = a.zip || '';
+      $('pfGName').value = g.name || '';
+      $('pfGRel').value = g.relationship || '';
+      $('pfGPhone').value = g.phone || '';
+      $('profEditor').hidden = false;
+      $('profEditor').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    $('btnProfCancel').addEventListener('click', () => { $('profEditor').hidden = true; });
+    $('btnProfSave').addEventListener('click', () => {
+      const first = $('pfFirst').value.trim();
+      const last = $('pfLast').value.trim();
+      if (!first || !last) { NBANA.toast('First and last name are required.', 'error'); return; }
+      const email = $('pfEmail').value.trim();
+      const clash = email ? NBANA.findByLogin(email) : null;
+      if (clash && clash.id !== user.id) {
+        NBANA.toast('That email is already used by another account.', 'error');
+        return;
+      }
+      const mid = $('pfMiddle').value.trim();
+      user.firstName = first;
+      user.middleName = mid;
+      user.lastName = last;
+      user.fullName = [first, mid, last].filter(Boolean).join(' ');
+      if (email) { user.email = email; user.username = email.toLowerCase(); }
+      user.phone = $('pfPhone').value.trim();
+      user.address = {
+        house: $('pfHouse').value.trim(), barangay: $('pfBrgy').value.trim(),
+        city: $('pfCity').value.trim(), province: $('pfProv').value.trim(), zip: $('pfZip').value.trim()
+      };
+      user.guardian = {
+        name: $('pfGName').value.trim(), relationship: $('pfGRel').value.trim(), phone: $('pfGPhone').value.trim()
+      };
+      saveUser(user);
+      $('profEditor').hidden = true;
+      $('sideName').textContent = user.fullName;
+      renderProfile();
+      NBANA.toast('Profile updated.', 'success');
+    });
   }
 
   /* ---------------- Dashboard banner ---------------- */
