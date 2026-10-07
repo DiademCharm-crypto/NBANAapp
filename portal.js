@@ -847,10 +847,6 @@
           time: timeIn ? (timeIn.value.trim() || '\u2014') : x.time
         };
       });
-      const newDate = $('attNewDate') && $('attNewDate').value;
-      if (newDate && !rows.some(r => r.date === newDate)) {
-        rows.push({ date: newDate, status: $('attNewStatus').value, time: '\u2014' });
-      }
       map[t.id] = rows;
       saveMap(K.attendance, map);
       attEditing = false; attEditButtons();
