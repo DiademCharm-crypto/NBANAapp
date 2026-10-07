@@ -36,6 +36,8 @@
       .replace(/"/g, '&quot;');
   }
 
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
   /* Students visible to the signed-in admin */
   function studentsInScope() {
     return NBANA.getAccounts().filter(a =>
