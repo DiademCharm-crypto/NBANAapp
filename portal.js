@@ -1330,6 +1330,289 @@
   }
 
 
+  /* ---------------- Students management (principal) ---------------- */
+  let stuEditingId = null;
+
+  function gradeOptionsHtml() {
+    return GRADES.map(g => '<option>' + g + '</option>').join('');
+  }
+
+  function fillStudentSelects() {
+    const scoped = studentsInScope();
+    const scopedOpts = scoped.map(a =>
+      '<option value="' + esc(a.id) + '">' + esc(nameOf(a)) + ' \u2014 ' + esc((a.student && a.student.section) || 'Section') + '</option>'
+    ).join('') || '<option>No students in this class</option>';
+    $('gradesStudentSel').innerHTML = scopedOpts;
+    $('attStudentSel').innerHTML = scopedOpts;
+    if (isPrincipal) {
+      const all = allStudents();
+      $('feesStudentSel').innerHTML = all.map(a =>
+        '<option value="' + esc(a.id) + '">' + esc(nameOf(a)) + ' \u2014 ' + esc((a.student && a.student.gradeLevel) || 'No grade') + '</option>'
+      ).join('') || '<option>No students yet</option>';
+      if (gradesTargetId) $('gradesStudentSel').value = gradesTargetId;
+      if (attTargetId) $('attStudentSel').value = attTargetId;
+      if (feesTargetId) $('feesStudentSel').value = feesTargetId;
+    }
+  }
+
+  function renderStudents() {
+    const list = allStudents();
+    $('stuCount').textContent = list.length + ' student account' + (list.length === 1 ? '' : 's') + ' \u00b7 editable records';
+    $('stuRows').innerHTML = list.length ? list.map(a => {
+      const s = NBANA.billingSummary(a);
+      const st = a.student || {};
+      return '<tr><td><strong>' + esc(nameOf(a)) + '</strong><br><span class="sc-sub">' + esc(a.email) + '</span></td>' +
+        '<td>' + esc(st.gradeLevel || '\u2014') + '</td>' +
+        '<td>' + esc(st.section || '\u2014') + '</td>' +
+        '<td>' + esc(st.lrn || '\u2014') + '</td>' +
+        '<td class="num">' + money(s.balance) + '</td>' +
+        '<td><button type="button" class="btn-sm" data-stuedit="' + esc(a.id) + '">Edit</button></td></tr>';
+    }).join('') : '<tr><td colspan="6"><div class="empty-state">No student accounts yet.</div></td></tr>';
+
+    document.querySelectorAll('[data-stuedit]').forEach(b => {
+      b.addEventListener('click', () => openStuEditor(b.dataset.stuedit));
+    });
+  }
+
+  function toggleRoleFields() {
+    const asTeacher = $('sfRole').value === 'teacher';
+    $('sfTGradeField').hidden = !asTeacher;
+    $('sfGradeField').hidden = asTeacher;
+    $('sfSectionField').hidden = asTeacher;
+    $('sfLrnField').hidden = asTeacher;
+  }
+
+  function openStuEditor(id) {
+    stuEditingId = id || 'new';
+    const a = id ? NBANA.findAccount(id) : null;
+    $('stuEditorTitle').textContent = a ? 'Edit record \u00b7 ' + nameOf(a) : 'Create a new portal account';
+    $('sfPwField').hidden = !!a;
+    const st = (a && a.student) || {};
+    const ad = (a && a.address) || {};
+    const gd = (a && a.guardian) || {};
+    $('sfFirst').value = (a && a.firstName) || '';
+    $('sfMiddle').value = (a && a.middleName) || '';
+    $('sfLast').value = (a && a.lastName) || '';
+    $('sfEmail').value = (a && a.email) || '';
+    $('sfPhone').value = (a && a.phone) || '';
+    $('sfRole').value = (a && a.role === 'teacher') ? 'teacher' : 'student';
+    $('sfGrade').value = st.gradeLevel || GRADES[4];
+    $('sfSection').value = st.section || '';
+    $('sfLrn').value = st.lrn || '';
+    $('sfTGrade').value = (a && a.assignedGrade) || teacherGrade;
+    $('sfHouse').value = ad.house || '';
+    $('sfBrgy').value = ad.barangay || '';
+    $('sfCity').value = ad.city || '';
+    $('sfProv').value = ad.province || '';
+    $('sfGName').value = gd.name || '';
+    $('sfGRel').value = gd.relationship || '';
+    $('sfGPhone').value = gd.phone || '';
+    $('sfPw').value = '';
+    toggleRoleFields();
+    $('stuEditor').hidden = false;
+    $('stuEditor').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function studentsInit() {
+    if (!isPrincipal) return;
+    $('sfGrade').innerHTML = gradeOptionsHtml();
+    $('sfTGrade').innerHTML = gradeOptionsHtml();
+    fillStudentSelects();
+    renderStudents();
+
+    $('btnStuNew').addEventListener('click', () => openStuEditor(null));
+    $('sfRole').addEventListener('change', toggleRoleFields);
+    const close = () => { $('stuEditor').hidden = true; stuEditingId = null; };
+    $('btnStuClose').addEventListener('click', close);
+    $('btnStuCancel').addEventListener('click', close);
+
+    $('stuForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const first = $('sfFirst').value.trim();
+      const last = $('sfLast').value.trim();
+      const email = $('sfEmail').value.trim();
+      let ok = first !== '';
+      $('sfFirst').classList.toggle('invalid', !ok);
+      $('sfFirst').parentElement.querySelector('.error').classList.toggle('show', !ok);
+      const lastOk = last !== '';
+      $('sfLast').classList.toggle('invalid', !lastOk);
+      $('sfLast').parentElement.querySelector('.error').classList.toggle('show', !lastOk);
+      const emailOk = EMAIL_RE.test(email);
+      $('sfEmail').classList.toggle('invalid', !emailOk);
+      $('sfEmail').parentElement.querySelector('.error').classList.toggle('show', !emailOk);
+      if (!ok || !lastOk || !emailOk) { NBANA.toast('Please fill in name and a valid email.', 'error'); return; }
+
+      const isNew = stuEditingId === 'new';
+      const existing = NBANA.findByLogin(email);
+      if (existing && (isNew || existing.id !== stuEditingId)) {
+        NBANA.toast('Another account already uses that email.', 'error');
+        return;
+      }
+      const asTeacher = $('sfRole').value === 'teacher';
+      let pw = '';
+      if (isNew) {
+        pw = $('sfPw').value;
+        const pwOk = pw.length >= 6;
+        $('sfPw').classList.toggle('invalid', !pwOk);
+        $('sfPw').parentElement.querySelector('.error').classList.toggle('show', !pwOk);
+        if (!pwOk) { NBANA.toast('Initial password must be at least 6 characters.', 'error'); return; }
+      }
+
+      const profile = {
+        firstName: first,
+        middleName: $('sfMiddle').value.trim(),
+        lastName: last,
+        fullName: [first, $('sfMiddle').value.trim(), last].filter(Boolean).join(' '),
+        email: email,
+        phone: $('sfPhone').value.trim(),
+        role: asTeacher ? 'teacher' : 'student',
+        address: {
+          house: $('sfHouse').value.trim(), barangay: $('sfBrgy').value.trim(),
+          city: $('sfCity').value.trim(), province: $('sfProv').value.trim(), zip: ''
+        },
+        guardian: {
+          name: $('sfGName').value.trim(), relationship: $('sfGRel').value.trim(), phone: $('sfGPhone').value.trim()
+        }
+      };
+
+      if (isNew) {
+        if (asTeacher) profile.assignedGrade = $('sfTGrade').value;
+        else profile.student = {
+          lrn: $('sfLrn').value.trim(),
+          gradeLevel: $('sfGrade').value,
+          section: $('sfSection').value.trim() || 'TBD',
+          schoolYear: '2026\u20132027',
+          semester: 'First Semester'
+        };
+        const created = NBANA.createAccount(profile, pw);
+        NBANA.toast('Account created for ' + created.fullName + '.', 'success');
+      } else {
+        const a = NBANA.findAccount(stuEditingId);
+        if (!a) { NBANA.toast('Account not found.', 'error'); return; }
+        Object.assign(a, profile);
+        if (asTeacher) {
+          a.assignedGrade = $('sfTGrade').value;
+        } else {
+          a.student = Object.assign({}, a.student, {
+            lrn: $('sfLrn').value.trim(),
+            gradeLevel: $('sfGrade').value,
+            section: $('sfSection').value.trim() || 'TBD'
+          });
+        }
+        saveUser(a);
+        NBANA.toast('Record updated for ' + a.fullName + '.', 'success');
+      }
+
+      $('stuForm').reset();
+      close();
+      fillStudentSelects();
+      renderStudents();
+      renderGrades();
+      renderAttendance();
+      renderFees();
+    });
+  }
+
+  /* ---------------- Admin dashboard ---------------- */
+  function renderAdminDash() {
+    if (!isAdmin) return;
+    const dash = $('view-dashboard');
+    let box = $('adminDash');
+    if (!box) {
+      Array.from(dash.children).forEach(el => { el.hidden = true; });
+      box = document.createElement('div');
+      box.id = 'adminDash';
+      dash.appendChild(box);
+    }
+
+    const students = allStudents();
+    const teachers = NBANA.getAccounts().filter(a => a.role === 'teacher');
+    const feed = visibleFeed();
+    const hour = new Date().getHours();
+    const kicker = hour < 12 ? 'Good morning' : (hour < 18 ? 'Good afternoon' : 'Good evening');
+
+    let cards, actions, bannerText;
+    if (isPrincipal) {
+      const receivable = students.reduce((sum, a) => sum + NBANA.billingSummary(a).balance, 0);
+      cards = [
+        { icon: '&#10003;', label: 'Students', value: students.length, sub: 'enrolled portal accounts' },
+        { icon: '&#9733;', label: 'Teachers', value: teachers.length, sub: 'faculty with portal access' },
+        { icon: '&#8369;', label: 'Tuition receivable', value: money(Math.round(receivable)), sub: 'unpaid balances, all grades' },
+        { icon: '&#9993;', label: 'Announcements', value: feed.length, sub: 'posts on the school feed' }
+      ];
+      actions = [
+        ['news', '+ Post an announcement'],
+        ['students', 'Manage student records'],
+        ['fees', 'Edit tuition & payments'],
+        ['grades', 'Enter or edit grades']
+      ];
+      bannerText = 'Full admin access \u00b7 You can edit tuition, grades, attendance, schedules, announcements, and every student record.';
+    } else {
+      const mine = studentsInScope();
+      const avgs = mine.map(a => {
+        const g = computeGrades(a);
+        return Math.round(g.reduce((s, x) => s + x.final, 0) / g.length);
+      });
+      const classAvg = avgs.length ? Math.round(avgs.reduce((s, x) => s + x, 0) / avgs.length) : 0;
+      cards = [
+        { icon: '&#10003;', label: 'My students', value: mine.length, sub: teacherGrade + ' class' },
+        { icon: '&#9733;', label: 'Class average', value: avgs.length ? classAvg : '\u2014', sub: 'general average, all subjects' },
+        { icon: '&#9776;', label: 'Assignments', value: gradeAssignments(teacherGrade).length, sub: 'posted to your class' },
+        { icon: '&#9993;', label: 'Feed posts', value: feed.length, sub: 'visible to you' }
+      ];
+      actions = [
+        ['tasks', '+ New assignment'],
+        ['grades', 'Enter grades'],
+        ['attendance', 'Mark attendance'],
+        ['news', 'Share a post with ' + teacherGrade]
+      ];
+      bannerText = 'Teacher account \u00b7 ' + teacherGrade + ' \u00b7 You can edit grades, attendance, schedule, and assignments for your class only. Tuition is managed by the administration.';
+    }
+
+    box.innerHTML =
+      '<div class="welcome-banner">' +
+        '<span class="wb-kicker">' + kicker + '</span>' +
+        '<h2>' + esc(fullName) + '</h2>' +
+        '<p>' + bannerText + '</p>' +
+      '</div>' +
+      '<div class="summary-grid">' + cards.map(c =>
+        '<div class="summary-card"><span class="sc-icon">' + c.icon + '</span>' +
+        '<span class="sc-label">' + c.label + '</span>' +
+        '<div class="sc-value">' + c.value + '</div>' +
+        '<div class="sc-sub">' + c.sub + '</div></div>'
+      ).join('') + '</div>' +
+      '<div class="panel-grid">' +
+        '<div class="panel"><div class="panel-head"><div><h3>Quick actions</h3><span class="sub">Admin tools</span></div></div>' +
+        '<div class="panel-body" style="display:flex;flex-direction:column;gap:10px">' +
+        actions.map((a, i) => '<button type="button" class="btn-sm' + (i === 0 ? ' solid' : '') + '" data-goto="' + a[0] + '">' + a[1] + '</button>').join('') +
+        '</div></div>' +
+        '<div class="panel"><div class="panel-head"><div><h3>Latest announcements</h3><span class="sub">School feed</span></div>' +
+        '<button type="button" class="btn-sm" data-goto="news">See all</button></div>' +
+        '<div class="panel-body flush feed">' +
+        (feed.length ? feed.slice(0, 3).map(postHtml).join('') : NEWS.slice(0, 2).map(newsItemHtml).join('')) +
+        '</div></div>' +
+      '</div>';
+
+    box.querySelectorAll('[data-goto]').forEach(b => {
+      b.addEventListener('click', () => setView(b.dataset.goto));
+    });
+  }
+
+  /* ---------------- Boot ---------------- */
+  renderFeed();
+  composerSetup();
+
+  if (isAdmin) {
+    renderAdminDash();
+    feesInit();
+    gradesInit();
+    attInit();
+    schedInit();
+    tasksInit();
+    profileInit();
+    studentsInit();
+  }
+
   renderBanner();
   renderFees();
   renderGrades();
