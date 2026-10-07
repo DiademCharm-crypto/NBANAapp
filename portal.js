@@ -981,8 +981,27 @@
   }
 
   /* ---------------- Assignments ---------------- */
+  function gradeAssignments(grade) { return loadMap(K.assignments)[grade] || []; }
+
+  /* A student sees their own tasks plus assignments posted by their adviser */
+  function studentTasks() {
+    const personal = (user.tasks || []).map(t => Object.assign({}, t, { personal: true }));
+    const doneIds = user.doneAssignments || [];
+    const ga = gradeAssignments(gradeLevel).map(a => ({
+      id: a.id,
+      title: a.title,
+      subject: a.subject,
+      due: a.due,
+      details: a.details || '',
+      done: doneIds.indexOf(a.id) > -1,
+      gradeTask: true
+    }));
+    return personal.concat(ga);
+  }
+
   function renderTasks() {
-    const tasks = user.tasks || [];
+    if (isAdmin) { renderAssignManage(); return; }
+    const tasks = studentTasks();
     const done = tasks.filter(t => t.done).length;
     const pct = tasks.length ? Math.round((done / tasks.length) * 100) : 0;
 
@@ -996,22 +1015,29 @@
       const duePill = overdue ? 'pill-red' : (t.done ? 'pill-green' : 'pill-amber');
       return '<label class="todo-item' + (t.done ? ' done' : '') + '">' +
         '<input type="checkbox" data-task="' + t.id + '"' + (t.done ? ' checked' : '') + '>' +
-        '<span class="t-body"><span class="t-title">' + t.title + '</span>' +
-        '<span class="t-meta"><span class="pill pill-navy">' + t.subject + '</span>' +
+        '<span class="t-body"><span class="t-title">' + esc(t.title) + '</span>' +
+        '<span class="t-meta"><span class="pill pill-navy">' + esc(t.subject) + '</span>' +
+        (t.gradeTask ? '<span class="pill pill-green">From your teacher</span>' : '') +
         '<span class="pill ' + duePill + '">Due ' + due.toLocaleDateString('en-PH', { month: 'short', day: 'numeric' }) +
         (overdue ? ' \u00b7 overdue' : '') + '</span></span></span></label>';
     }).join('') : '<div class="empty-state"><span class="es-icon">&#10003;</span>No assignments right now. Enjoy!</div>';
 
     document.querySelectorAll('[data-task]').forEach(cb => {
       cb.addEventListener('change', () => {
-        const t = (user.tasks || []).find(x => x.id === cb.dataset.task);
-        if (t) {
-          t.done = cb.checked;
-          saveUser(user);
-          renderTasks();
-          renderSummaryCounts();
-          NBANA.toast(cb.checked ? 'Assignment marked as done.' : 'Assignment reopened.', 'success');
+        const id = cb.dataset.task;
+        const own = (user.tasks || []).find(x => x.id === id);
+        if (own) {
+          own.done = cb.checked;
+        } else {
+          let ids = user.doneAssignments || [];
+          if (cb.checked && ids.indexOf(id) === -1) ids.push(id);
+          if (!cb.checked) ids = ids.filter(x => x !== id);
+          user.doneAssignments = ids;
         }
+        saveUser(user);
+        renderTasks();
+        renderSummaryCounts();
+        NBANA.toast(cb.checked ? 'Assignment marked as done.' : 'Assignment reopened.', 'success');
       });
     });
 
@@ -1019,10 +1045,168 @@
   }
 
   function renderSummaryCounts() {
-    const tasks = user.tasks || [];
+    if (isAdmin) {
+      $('sumTasks').textContent = gradeAssignments(teacherGrade).length;
+      $('sumTasksSub').textContent = 'assignments posted for ' + teacherGrade;
+      return;
+    }
+    const tasks = studentTasks();
     const open = tasks.filter(t => !t.done).length;
     $('sumTasks').textContent = open;
     $('sumTasksSub').textContent = open ? 'due soon \u00b7 ' + tasks.length + ' total' : 'all caught up';
+  }
+
+  /* ---------------- Teacher: manage class assignments ---------------- */
+  let assignEditingId = null;
+  let assignPhoto = null;
+
+  function assignCardHtml(a) {
+    const who = (user.fullName || user.firstName || 'T').split(/\s+/).map(w => w.charAt(0)).slice(0, 2).join('').toUpperCase();
+    const due = new Date(a.due + 'T00:00:00');
+    const overdue = due < new Date();
+    return '<article class="feed-post">' +
+      '<div class="fp-head">' +
+        '<span class="fp-avatar">' + esc(who) + '</span>' +
+        '<div class="fp-who"><strong>' + esc(user.fullName || user.firstName) + '</strong>' +
+        '<span class="fp-meta"><span class="pill pill-green">Teacher</span> ' +
+        '<span class="pill pill-navy">' + esc(teacherGrade) + '</span> \u00b7 ' + fmtStamp(a.date || nowStamp()) + '</span></div>' +
+        '<span class="fp-actions">' +
+          '<button type="button" class="btn-sm" data-asedit="' + esc(a.id) + '">Edit</button>' +
+          '<button type="button" class="btn-del" data-asdel="' + esc(a.id) + '" title="Delete">&times;</button>' +
+        '</span>' +
+      '</div>' +
+      '<h4 class="fp-title">' + esc(a.title) + '</h4>' +
+      '<span class="pill ' + (overdue ? 'pill-red' : 'pill-amber') + ' fp-tag">' +
+        esc(a.subject) + ' \u00b7 Due ' + due.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) + '</span>' +
+      (a.details ? '<p class="fp-body">' + esc(a.details).replace(/\n/g, '<br>') + '</p>' : '') +
+      (a.photo ? '<img class="fp-photo" src="' + a.photo + '" alt="Assignment photo">' : '') +
+    '</article>';
+  }
+
+  function renderAssignManage() {
+    const list = gradeAssignments(teacherGrade);
+    $('assignSub').textContent = list.length + ' assignment' + (list.length === 1 ? '' : 's') +
+      ' posted for ' + teacherGrade + ' \u00b7 students see them in their portal';
+    $('assignList').innerHTML = list.length
+      ? list.map(assignCardHtml).join('')
+      : '<div class="empty-state"><span class="es-icon">&#9998;</span>No assignments yet. Post your first one!</div>';
+
+    document.querySelectorAll('[data-asdel]').forEach(b => {
+      b.addEventListener('click', () => {
+        const map = loadMap(K.assignments);
+        map[teacherGrade] = (map[teacherGrade] || []).filter(x => x.id !== b.dataset.asdel);
+        saveMap(K.assignments, map);
+        saveFeed(loadFeed().filter(p => p.ref !== b.dataset.asdel));
+        renderAssignManage();
+        renderFeed();
+        NBANA.toast('Assignment removed.', 'success');
+      });
+    });
+    document.querySelectorAll('[data-asedit]').forEach(b => {
+      b.addEventListener('click', () => {
+        const a = gradeAssignments(teacherGrade).find(x => x.id === b.dataset.asedit);
+        if (!a) return;
+        assignEditingId = a.id;
+        assignPhoto = a.photo || null;
+        $('asTitle').value = a.title;
+        $('asSubject').value = a.subject;
+        $('asDue').value = a.due;
+        $('asDetails').value = a.details || '';
+        $('asPhotoPreview').hidden = !assignPhoto;
+        if (assignPhoto) $('asPhotoImg').src = assignPhoto;
+        $('btnAssignSubmit').textContent = 'Save changes';
+        $('assignFormWrap').hidden = false;
+        $('asTitle').focus();
+      });
+    });
+  }
+
+  function tasksInit() {
+    if (!isTeacher) return;
+    $('assignManagePanel').hidden = false;
+    $('taskPanel').hidden = true;
+    $('asSubject').innerHTML = subjectsFor(teacherGrade).map(s => '<option>' + esc(s) + '</option>').join('');
+
+    $('btnAssignNew').addEventListener('click', () => {
+      assignEditingId = null; assignPhoto = null;
+      $('assignForm').reset();
+      $('asPhotoPreview').hidden = true;
+      $('btnAssignSubmit').textContent = 'Post assignment';
+      $('assignFormWrap').hidden = false;
+      $('asTitle').focus();
+    });
+    $('btnAssignCancel').addEventListener('click', () => { $('assignFormWrap').hidden = true; });
+    $('asPhoto').addEventListener('change', (e) => {
+      readImage(e.target.files[0], (data) => {
+        assignPhoto = data;
+        $('asPhotoPreview').hidden = !data;
+        if (data) $('asPhotoImg').src = data;
+      });
+    });
+    $('asPhotoRemove').addEventListener('click', () => {
+      assignPhoto = null; $('asPhoto').value = ''; $('asPhotoPreview').hidden = true;
+    });
+
+    $('assignForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const titleEl = $('asTitle');
+      const dueEl = $('asDue');
+      let ok = titleEl.value.trim() !== '';
+      titleEl.classList.toggle('invalid', !ok);
+      titleEl.parentElement.querySelector('.error').classList.toggle('show', !ok);
+      const dueOk = dueEl.value !== '';
+      dueEl.classList.toggle('invalid', !dueOk);
+      dueEl.parentElement.querySelector('.error').classList.toggle('show', !dueOk);
+      if (!ok || !dueOk) { NBANA.toast('Please fill in the title and due date.', 'error'); return; }
+
+      const map = loadMap(K.assignments);
+      const list = map[teacherGrade] || [];
+      const data = {
+        title: titleEl.value.trim(),
+        subject: $('asSubject').value,
+        due: dueEl.value,
+        details: $('asDetails').value.trim(),
+        photo: assignPhoto
+      };
+      let id = assignEditingId;
+      if (id) {
+        const a = list.find(x => x.id === id);
+        Object.assign(a, data);
+      } else {
+        id = 'as_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+        list.push(Object.assign({ id: id, date: nowStamp(), by: user.fullName || user.firstName }, data));
+      }
+      map[teacherGrade] = list;
+      saveMap(K.assignments, map);
+
+      /* Mirror the assignment into the shared feed so students see the post */
+      const feed = loadFeed();
+      const existing = feed.find(p => p.ref === id);
+      const post = {
+        ref: id,
+        authorId: user.id,
+        author: user.fullName || user.firstName,
+        role: 'teacher',
+        scope: teacherGrade,
+        title: data.title,
+        body: data.details,
+        photo: data.photo,
+        tag: data.subject + ' \u00b7 Due ' + new Date(data.due + 'T00:00:00').toLocaleDateString('en-PH', { month: 'short', day: 'numeric' }),
+        date: existing ? existing.date : nowStamp()
+      };
+      if (existing) Object.assign(existing, post);
+      else feed.unshift(Object.assign({ id: 'p_' + id }, post));
+      saveFeed(feed);
+
+      $('assignForm').reset();
+      assignPhoto = null; assignEditingId = null;
+      $('asPhotoPreview').hidden = true;
+      $('assignFormWrap').hidden = true;
+      renderAssignManage();
+      renderFeed();
+      renderSummaryCounts();
+      NBANA.toast('Assignment posted to ' + teacherGrade + ' students.', 'success');
+    });
   }
 
   /* ---------------- Profile ---------------- */
