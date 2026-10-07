@@ -14,9 +14,43 @@
   const $ = (id) => document.getElementById(id);
   const money = NBANA.peso;
 
+  /* ---------------- Roles & scope ---------------- */
+  const role = user.role || 'student';
+  const isPrincipal = role === 'principal';
+  const isTeacher = role === 'teacher';
+  const isAdmin = isPrincipal || isTeacher;
+  const teacherGrade = user.assignedGrade || 'Grade 5';
+  const GRADES = ['Kinder 1', 'Kinder 2', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6'];
+
+  const K = {
+    grades: 'nbana.grades.v1',
+    attendance: 'nbana.attendance.v1',
+    schedule: 'nbana.schedules.v1',
+    feed: 'nbana.feed.v1',
+    assignments: 'nbana.assignments.v1'
+  };
+
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  /* Students visible to the signed-in admin */
+  function studentsInScope() {
+    return NBANA.getAccounts().filter(a =>
+      (a.role || 'student') === 'student' &&
+      (!isTeacher || (a.student && a.student.gradeLevel) === teacherGrade)
+    );
+  }
+  function allStudents() {
+    return NBANA.getAccounts().filter(a => (a.role || 'student') === 'student');
+  }
+
   /* ---------------- View routing ---------------- */
   const VIEWS = {
     dashboard: ['Dashboard', 'Your school day at a glance'],
+    students: ['Students', 'Manage every student account'],
     fees: ['Tuition & Fees', 'Assessed fees, payments, and balance'],
     grades: ['Grades', 'Report card and class standing'],
     attendance: ['Attendance', 'Daily record for this term'],
@@ -26,8 +60,15 @@
     profile: ['My Profile', 'Your registration survey answers']
   };
 
+  /* Which sections each role may open. Teachers never see tuition. */
+  const ALLOWED = {
+    student: ['dashboard', 'fees', 'grades', 'attendance', 'schedule', 'tasks', 'news', 'profile'],
+    teacher: ['dashboard', 'grades', 'attendance', 'schedule', 'tasks', 'news', 'profile'],
+    principal: ['dashboard', 'students', 'fees', 'grades', 'attendance', 'schedule', 'news', 'profile']
+  };
+
   function setView(name) {
-    if (!VIEWS[name]) name = 'dashboard';
+    if (!VIEWS[name] || ALLOWED[role].indexOf(name) === -1) name = 'dashboard';
     document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + name));
     document.querySelectorAll('#sideNav button').forEach(b => b.classList.toggle('active', b.dataset.view === name));
     $('viewTitle').textContent = VIEWS[name][0];
@@ -37,6 +78,7 @@
   }
 
   document.querySelectorAll('#sideNav button').forEach(b => {
+    b.hidden = ALLOWED[role].indexOf(b.dataset.view) === -1;
     b.addEventListener('click', () => setView(b.dataset.view));
   });
   document.querySelectorAll('[data-goto]').forEach(b => {
