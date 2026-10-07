@@ -16,18 +16,24 @@
 
   /* ---------------- Roles & scope ---------------- */
   const role = user.role || 'student';
-  const isPrincipal = role === 'principal';
+  /* 'principal' is the school head; 'admin' is a full administrator. Both get every tool. */
+  const isPrincipal = NBANA.isAdminRole(role);
   const isTeacher = role === 'teacher';
   const isAdmin = isPrincipal || isTeacher;
+  const adminTitle = role === 'principal' ? 'Full Admin \u00b7 Principal' : 'Full Admin \u00b7 Administrator';
   const teacherGrade = user.assignedGrade || 'Grade 5';
   const GRADES = ['Kinder 1', 'Kinder 2', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6'];
+  const GRADUATED = 'Graduated';
 
   const K = {
     grades: 'nbana.grades.v1',
     attendance: 'nbana.attendance.v1',
     schedule: 'nbana.schedules.v1',
     feed: 'nbana.feed.v1',
-    assignments: 'nbana.assignments.v1'
+    assignments: 'nbana.assignments.v1',
+    concerns: 'nbana.concerns.v1',
+    threads: 'nbana.threads.v1',
+    notices: 'nbana.notices.v1'
   };
 
   function esc(s) {
@@ -37,6 +43,19 @@
   }
 
   const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+  /* Avatars: a profile picture when the account has one, initials otherwise */
+  function initialsOf(name) {
+    return String(name || '?').split(/\s+/).map(w => w.charAt(0)).slice(0, 2).join('').toUpperCase();
+  }
+  function photoOf(accountId) {
+    const a = accountId ? NBANA.findAccount(accountId) : null;
+    return (a && a.photo) || '';
+  }
+  function avatarSpan(cls, name, photo) {
+    return '<span class="' + cls + (photo ? ' has-photo' : '') + '">' +
+      (photo ? '<img src="' + photo + '" alt="">' : esc(initialsOf(name))) + '</span>';
+  }
 
   /* Students visible to the signed-in admin */
   function studentsInScope() {
@@ -48,34 +67,61 @@
   function allStudents() {
     return NBANA.getAccounts().filter(a => (a.role || 'student') === 'student');
   }
+  /* Students still enrolled this school year (Grade 6 leavers drop out of the roster) */
+  function isGraduated(a) { return !!(a.student && a.student.status === GRADUATED); }
+  function activeStudents() { return allStudents().filter(a => !isGraduated(a)); }
 
   /* ---------------- View routing ---------------- */
   const VIEWS = {
     dashboard: ['Dashboard', 'Your school day at a glance'],
     students: ['Students', 'Manage every student account'],
+    approvals: ['Approvals', 'Teacher posts waiting for your approval'],
     fees: ['Tuition & Fees', 'Assessed fees, payments, and balance'],
     grades: ['Grades', 'Report card and class standing'],
     attendance: ['Attendance', 'Daily record for this term'],
     schedule: ['Class Schedule', 'Weekly timetable'],
     tasks: ['Assignments', 'Tasks and due dates'],
-    news: ['Announcements', 'Latest from the school'],
+    news: ['Feed', 'School posts, announcements & event memories'],
+    faculty: ['Faculty & Staff', 'Teachers and school staff'],
+    messages: ['Messages', 'Chat with your teacher'],
+    contact: ['Contact School', 'Send a concern to the school office'],
+    pwreq: ['Password help', 'Send users the password they forgot'],
     profile: ['My Profile', 'Your registration survey answers']
   };
 
-  /* Which sections each role may open. Teachers never see tuition. */
-  const ALLOWED = {
-    student: ['dashboard', 'fees', 'grades', 'attendance', 'schedule', 'tasks', 'news', 'profile'],
-    teacher: ['dashboard', 'grades', 'attendance', 'schedule', 'tasks', 'news', 'profile'],
-    principal: ['dashboard', 'students', 'fees', 'grades', 'attendance', 'schedule', 'news', 'profile']
+  /* Some sections read differently depending on who is signed in */
+  const VIEW_ROLE = {
+    messages: {
+      teacher: ['Messages', 'Chat with the students in your class'],
+      principal: ['Message monitoring', 'See which student is messaging which teacher']
+    },
+    contact: {
+      principal: ['School Concerns', 'Concerns students sent to the school office']
+    }
   };
+  function viewMeta(name) { return (VIEW_ROLE[name] && VIEW_ROLE[name][role]) || VIEWS[name]; }
+
+  /* Which sections each role may open. Teachers never see tuition or school concerns. */
+  const ALLOWED = {
+    student: ['dashboard', 'fees', 'grades', 'attendance', 'schedule', 'tasks', 'news', 'faculty', 'messages', 'contact', 'profile'],
+    teacher: ['dashboard', 'grades', 'attendance', 'schedule', 'tasks', 'news', 'faculty', 'messages', 'profile'],
+    principal: ['dashboard', 'students', 'approvals', 'fees', 'grades', 'attendance', 'schedule', 'news', 'faculty', 'messages', 'contact', 'pwreq', 'profile']
+  };
+  ALLOWED.admin = ALLOWED.principal;
 
   function setView(name) {
     if (!VIEWS[name] || ALLOWED[role].indexOf(name) === -1) name = 'dashboard';
     document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + name));
     document.querySelectorAll('#sideNav button').forEach(b => b.classList.toggle('active', b.dataset.view === name));
-    $('viewTitle').textContent = VIEWS[name][0];
-    $('viewSub').textContent = VIEWS[name][1];
+    const meta = viewMeta(name);
+    $('viewTitle').textContent = meta[0];
+    $('viewSub').textContent = meta[1];
+    if (name === 'messages') renderMessages();
+    if (name === 'contact') { renderConcerns(); renderNotices(); markConcernsSeen(); markNoticesRead(); }
+    if (name === 'pwreq') renderPwReqs();
     $('portalShell').classList.remove('side-open');
+    closeDrawer();
+    syncBottomNav(name);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
@@ -103,21 +149,27 @@
   $('logoutBtn').addEventListener('click', () => {
     NBANA.store.del(NBANA.KEYS.session);
     NBANA.toast('You have been signed out.');
-    setTimeout(() => { window.location.href = 'index.html'; }, 400);
+    setTimeout(() => { window.location.href = 'login.html'; }, 400);
   });
 
   /* ---------------- Header chips ---------------- */
   $('chipDate').textContent = new Date().toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
-  const schoolYear = (user.student && user.student.schoolYear) || '2026-2027';
+  const schoolYear = NBANA.getSchoolYear();
   $('chipYear').textContent = 'SY ' + schoolYear;
 
   /* Sidebar identity */
   const fullName = user.fullName || [user.firstName, user.middleName, user.lastName].filter(Boolean).join(' ');
   const initials = (user.firstName || '?').charAt(0) + (user.lastName || '').charAt(0);
-  $('sideAvatar').textContent = initials.toUpperCase() || '?';
+  function paintAvatar() {
+    const el = $('sideAvatar');
+    if (!el) return;
+    if (user.photo) el.innerHTML = '<img src="' + user.photo + '" alt="">';
+    else el.textContent = initials.toUpperCase() || '?';
+  }
+  paintAvatar();
   $('sideName').textContent = fullName;
   if (isAdmin) {
-    $('sideGrade').textContent = isPrincipal ? 'Full Admin \u00b7 Principal' : 'Teacher \u00b7 ' + teacherGrade;
+    $('sideGrade').textContent = isPrincipal ? adminTitle : 'Teacher \u00b7 ' + teacherGrade;
     $('sideAvatar').classList.add('admin');
   } else {
     $('sideGrade').textContent = (user.student ? user.student.gradeLevel : 'Student') +
@@ -140,24 +192,30 @@
   function loadFeed() { return NBANA.store.get(K.feed, []) || []; }
   function saveFeed(list) { NBANA.store.set(K.feed, list); }
 
+  /* Teacher posts wait for the principal's approval before anyone sees them */
+  function postStatus(p) { return p.status || 'approved'; }
+  function pendingPosts() { return loadFeed().filter(p => postStatus(p) === 'pending'); }
+
   /* A post is visible when: everyone (scope 'all'), or it targets my grade.
-     Principal announcements use scope 'all' so even teachers see them. */
+     Principal announcements use scope 'all' so even teachers see them.
+     A teacher always sees their own posts so they can follow the approval status. */
   function visibleFeed() {
     const myGrade = isTeacher ? teacherGrade : (user.student && user.student.gradeLevel);
-    return loadFeed().filter(p =>
-      isPrincipal || p.scope === 'all' || (myGrade && p.scope === myGrade)
-    );
+    return loadFeed().filter(p => {
+      if (postStatus(p) !== 'approved') return p.authorId === user.id;
+      return isPrincipal || p.scope === 'all' || (myGrade && p.scope === myGrade);
+    });
   }
 
   /* Compress an image to a data URL (keeps localStorage small) */
-  function readImage(file, cb) {
+  function readImage(file, cb, maxSize) {
     if (!file) { cb(null); return; }
     if (!/^image\//.test(file.type)) { NBANA.toast('Please choose an image file.', 'error'); return; }
     const reader = new FileReader();
     reader.onload = () => {
       const img = new Image();
       img.onload = () => {
-        const max = 1280;
+        const max = maxSize || 1280;
         let w = img.width, h = img.height;
         if (w > max || h > max) {
           const k = Math.min(max / w, max / h);
@@ -173,6 +231,172 @@
     };
     reader.readAsDataURL(file);
   }
+
+  /* -------- Post media: photos & short videos, Facebook-style. --------
+     Media is too big for localStorage, so each file goes into a small
+     in-browser database (IndexedDB) as a { key, dataUrl } record — the same
+     record shape Supabase storage will use, so nothing here is throwaway. */
+  function mediaDB() {
+    return new Promise((resolve, reject) => {
+      const rq = indexedDB.open('nbana-media', 1);
+      rq.onupgradeneeded = () => {
+        const dx = rq.result;
+        if (!dx.objectStoreNames.contains('files')) dx.createObjectStore('files', { keyPath: 'key' });
+      };
+      rq.onsuccess = () => resolve(rq.result);
+      rq.onerror = () => reject(rq.error);
+    });
+  }
+  function mediaIDB(op, fn) {
+    return mediaDB().then((dx) => new Promise((resolve, reject) => {
+      const tx = dx.transaction('files', op);
+      const rq = fn(tx.objectStore('files'));
+      rq.onsuccess = () => { dx.close(); resolve(rq.result); };
+      rq.onerror = () => { dx.close(); reject(rq.error); };
+    }));
+  }
+  function mediaPut(key, dataUrl) { return mediaIDB('readwrite', (s) => s.put({ key, dataUrl })); }
+  function mediaGet(key) { return mediaIDB('readonly', (s) => s.get(key)).then((rec) => (rec && rec.dataUrl) || null); }
+  function mediaDelete(key) { return mediaIDB('readwrite', (s) => s.delete(key)); }
+
+  const blobUrlCache = {};
+  function dataUrlToBlob(dataUrl) {
+    const parts = dataUrl.split(',');
+    const mime = (parts[0].match(/data:([^;]+)/) || [])[1] || 'application/octet-stream';
+    const bin = atob(parts[1]);
+    const buf = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+    return new Blob([buf], { type: mime });
+  }
+  /* Object-URL per media key, cached so scrolling the feed doesn't re-decode */
+  function mediaUrl(key, cb) {
+    if (blobUrlCache[key]) { cb(blobUrlCache[key]); return; }
+    mediaGet(key).then((dataUrl) => {
+      if (!dataUrl) { cb(null); return; }
+      blobUrlCache[key] = URL.createObjectURL(dataUrlToBlob(dataUrl));
+      cb(blobUrlCache[key]);
+    });
+  }
+  /* Fill in the real source of every <img>/<video> that points at the media store.
+     Cloud URL first (works on any device), local copy as the fallback. */
+  function mediaHydrate(root) {
+    const nodes = root && root.querySelectorAll ? root.querySelectorAll('img[data-media-key], video[data-media-key], img[data-media-url], video[data-media-url]') : [];
+    nodes.forEach((n) => {
+      if (n.dataset.mediaUrl) { n.src = n.dataset.mediaUrl; return; }
+      if (n.dataset.mediaKey) mediaUrl(n.dataset.mediaKey, (u) => { if (u) n.src = u; });
+    });
+  }
+
+  /* A media node carries both sources: the uploaded URL (any device) and the
+     local IndexedDB key (this device, so a post still opens offline). */
+  function mediaAttrs(m) {
+    let out = '';
+    if (m && m.url) out += ' data-media-url="' + esc(m.url) + '"';
+    if (m && m.key && !m.legacy) out += ' data-media-key="' + esc(m.key) + '"';
+    return out;
+  }
+
+  /* Grab a frame from a video file to use as its cover photo */
+  function pickVideoPoster(file) {
+    return new Promise((resolve) => {
+      try {
+        const dom = document.createElement('video');
+        dom.preload = 'metadata';
+        dom.muted = true;
+        const url = URL.createObjectURL(file);
+        dom.src = url;
+        let settled = false;
+        const done = (p) => { if (settled) return; settled = true; URL.revokeObjectURL(url); resolve(p); };
+        dom.onloadeddata = () => {
+          dom.currentTime = Math.min(1, (dom.duration || 2) / 3);
+          dom.onseeked = () => {
+            try {
+              const c = document.createElement('canvas');
+              c.width = dom.videoWidth || 1280; c.height = dom.videoHeight || 720;
+              c.getContext('2d').drawImage(dom, 0, 0, c.width, c.height);
+              done(c.toDataURL('image/jpeg', 0.6));
+            } catch (err) { done(null); }
+          };
+        };
+        dom.onerror = () => done(null);
+        setTimeout(() => done(null), 6000);
+      } catch (err) { resolve(null); }
+    });
+  }
+
+  function renderMediaHtml(p) {
+    const list = p.media || (p.photo ? [{ key: 'legacy-' + p.id, kind: 'photo', legacy: true }] : []);
+    if (!list.length) return '';
+    /* A lone video plays inline, Facebook-style; everything else is a tappable grid */
+    if (list.length === 1 && list[0].kind === 'video') {
+      return '<video class="fp-video" controls preload="metadata"' + mediaAttrs(list[0]) + '></video>';
+    }
+    const cell = (m, i) =>
+      '<figure class="fp-media" data-idx="' + i + '">' +
+        '<div class="fp-thumb" data-open="' + esc(p.id) + '|' + i + '">' +
+          (m.kind === 'video'
+            ? ((m.posterKey || m.posterUrl)
+                ? '<img' + mediaAttrs({ url: m.posterUrl, key: m.posterKey }) + ' alt="Video cover">'
+                : '') + '<span class="fp-play">&#9654;</span>'
+            : (m.legacy
+                ? '<img src="' + p.photo + '" alt="School event photo">'
+                : '<img' + mediaAttrs(m) + ' alt="School event photo">')) +
+        '</div>' +
+      '</figure>';
+    return '<div class="fp-grid n' + Math.min(list.length, 4) + '">' + list.map(cell).join('') + '</div>';
+  }
+
+  function migrateFeedPhotos() {
+    const toMove = loadFeed().filter((p) => p.photo && (!p.media || !p.media.length));
+    if (!toMove.length) return Promise.resolve();
+    return Promise.all(toMove.map((p) => mediaPut('media_' + p.id, p.photo)))
+      .then(() => {
+        toMove.forEach((p) => {
+          p.media = [{ key: 'media_' + p.id, kind: 'photo' }];
+          delete p.photo;
+        });
+        saveFeed(loadFeed());
+      })
+      .catch(() => {});
+  }
+
+  function openLightbox(postId, idx) {
+    const p = loadFeed().find((x) => x.id === postId);
+    const lb = $('lightbox');
+    const stage = $('lbStage');
+    if (!p || !lb || !stage) return;
+    const list = p.media || (p.photo ? [{ key: 'legacy-' + p.id, kind: 'photo', legacy: true }] : []);
+    const m = list[idx];
+    if (!m) return;
+    const close = () => { lb.hidden = true; stage.innerHTML = ''; };
+    $('lbClose').onclick = close;
+    lb.onclick = (ev) => { if (ev.target === lb) close(); };
+    stage.innerHTML = '';
+    const getUrl = m.url ? Promise.resolve(m.url)
+      : (m.legacy ? Promise.resolve(p.photo) : new Promise((res) => mediaUrl(m.key, res)));
+    getUrl.then((u) => {
+      if (!u) { close(); return; }
+      stage.innerHTML = m.kind === 'video'
+        ? '<video src="' + u + '" controls autoplay playsinline></video>'
+        : '<img src="' + u + '" alt="School event photo">' +
+          (list.length > 1 ? '<span class="lb-count">' + (idx + 1) + ' / ' + list.length + '</span>' : '');
+      lb.hidden = false;
+    });
+    lb.dataset.open = '1';
+  }
+  document.addEventListener('click', (e) => {
+    const t = e.target && e.target.closest ? e.target.closest('[data-open]') : null;
+    if (t) openLightboxTap(t);
+  });
+  function openLightboxTap(t) {
+    const parts = t.dataset.open.split('|');
+    openLightbox(parts[0], Number(parts[1] || 0));
+  }
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    const lb = $('lightbox');
+    if (lb && !lb.hidden) { lb.hidden = true; $('lbStage').innerHTML = ''; }
+  });
 
   function nowStamp() { return new Date().toISOString(); }
   function fmtStamp(iso) {
@@ -218,81 +442,380 @@
       '<h4>' + n.title + '</h4><p>' + n.body + '</p></div>';
   }
 
-  function postHtml(p) {
-    const who = (p.author || '?').split(/\s+/).map(w => w.charAt(0)).slice(0, 2).join('').toUpperCase();
-    const roleCls = p.role === 'principal' ? 'pill-navy' : (p.role === 'teacher' ? 'pill-green' : 'pill-amber');
-    const roleTxt = p.role === 'principal' ? 'Principal' : (p.role === 'teacher' ? 'Teacher' : 'Student');
+  /* ---------------- Past school events (shown under the announcements) ---------------- */
+  const PAST_EVENTS = [
+    { date: '2026-09-26', tag: 'Event', title: 'Nutrition Month Culmination', body: 'Students presented healthy snacks, joined the feeding program, and crowned this year\u2019s Nutrition Ambassadors.' },
+    { date: '2026-09-08', tag: 'Program', title: 'Buwan ng Wika Celebration', body: 'A morning of folk dances, tula, and kundiman. Parents joined the salo-salo after the program.' },
+    { date: '2026-08-22', tag: 'Sports', title: 'Intramurals 2026', body: 'Four teams competed in athletics, basketball, and parlor games. Team Lakandula took the overall championship.' },
+    { date: '2026-07-30', tag: 'Outreach', title: 'Community Outreach & Gift Giving', body: 'Learners and teachers shared school supplies and food packs with families in Barangay San Jose.' },
+    { date: '2026-07-18', tag: 'Spiritual', title: 'Week of Prayer', body: 'A week of reflection, songs, and a family night program led by the campus chaplaincy.' },
+    { date: '2026-06-16', tag: 'Opening', title: 'First Day of Classes, SY 2026-2027', body: 'Welcome assembly for Kinder to Grade 6, classroom orientation, and the distribution of class schedules.' },
+    { date: '2026-05-28', tag: 'Graduation', title: 'Moving-Up & Recognition Day', body: 'Our Grade 6 completers marched with their families, followed by the awarding of honors and certificates.' }
+  ];
+
+  function pastEventHtml(e) {
+    return '<div class="news-item past-event"><span class="date">' + esc(fmtDate(e.date)) + '</span>' +
+      '<span class="tag" style="margin-left:8px">' + esc(e.tag) + '</span>' +
+      '<h4>' + esc(e.title) + '</h4><p>' + esc(e.body) + '</p></div>';
+  }
+
+  /* ---------------- Greeting & positive motivation ---------------- */
+  function greeting() {
+    const h = new Date().getHours();
+    if (h < 12) return 'Good morning';
+    if (h < 18) return 'Good afternoon';
+    return 'Good evening';
+  }
+  function greetEmoji() {
+    const h = new Date().getHours();
+    if (h < 12) return '\u{1F31E}';
+    if (h < 18) return '\u{1F308}';
+    return '\u{1F319}';
+  }
+
+  /* A verse a day - motivational and positive verses for the whole school */
+  const VERSES = [
+    { t: 'I can do all things through Christ who strengthens me.', r: 'Philippians 4:13' },
+    { t: 'For I know the plans I have for you, declares the Lord, plans to prosper you and not to harm you, plans to give you hope and a future.', r: 'Jeremiah 29:11' },
+    { t: 'The Lord is my shepherd; I shall not want.', r: 'Psalm 23:1' },
+    { t: 'Be strong and courageous. Do not be afraid; do not be discouraged, for the Lord your God will be with you wherever you go.', r: 'Joshua 1:9' },
+    { t: 'Trust in the Lord with all your heart and lean not on your own understanding.', r: 'Proverbs 3:5' },
+    { t: 'I am the light of the world. Whoever follows me will never walk in darkness.', r: 'John 8:12' },
+    { t: 'With God all things are possible.', r: 'Matthew 19:26' },
+    { t: 'Let all that you do be done in love.', r: '1 Corinthians 16:14' },
+    { t: 'Do not be anxious about anything, but in every situation, by prayer and petition, with thanksgiving, present your requests to God.', r: 'Philippians 4:6' },
+    { t: 'Whatever you do, work at it with all your heart, as working for the Lord.', r: 'Colossians 3:23' },
+    { t: 'The joy of the Lord is your strength.', r: 'Nehemiah 8:10' },
+    { t: 'Children, obey your parents in the Lord, for this is right.', r: 'Ephesians 6:1' },
+    { t: 'Thy word is a lamp unto my feet, and a light unto my path.', r: 'Psalm 119:105' },
+    { t: 'Cast all your anxiety on him because he cares for you.', r: '1 Peter 5:7' },
+    { t: 'Be kind and compassionate to one another, forgiving each other.', r: 'Ephesians 4:32' }
+  ];
+  let verseOffset = 0;
+
+  function verseOfTheDay() {
+    const now = new Date();
+    const dayOfYear = Math.floor((now - new Date(now.getFullYear(), 0, 0)) / 86400000);
+    const i = ((dayOfYear + verseOffset) % VERSES.length + VERSES.length) % VERSES.length;
+    return VERSES[i];
+  }
+
+  function renderVerse() {
+    const v = verseOfTheDay();
+    const el = $('wbVerse');
+    if (!el) return;
+    el.innerHTML = '"' + esc(v.t) + '" <span class="wb-verse-ref">\u2014 ' + esc(v.r) + '</span>';
+  }
+  if ($('wbVerseBtn')) $('wbVerseBtn').addEventListener('click', () => { verseOffset++; renderVerse(); });
+
+  /* Principal announcements are published right away; teacher posts are queued for approval */
+  function statusPill(p) {
+    if (p.role !== 'teacher') return '';
+    const st = postStatus(p);
+    if (st === 'pending') return '<span class="pill pill-amber">Waiting for approval</span> ';
+    if (st === 'rejected') return '<span class="pill pill-red">Not approved</span> ';
+    return p.authorId === user.id || isPrincipal ? '<span class="pill pill-green">Published</span> ' : '';
+  }
+
+  function postHtml(p, actions) {
+    const roleCls = NBANA.isAdminRole(p.role) ? 'pill-navy' : (p.role === 'teacher' ? 'pill-green' : 'pill-amber');
+    const roleTxt = NBANA.roleLabel(p.role);
     const audience = p.scope === 'all' ? 'Everyone' : p.scope;
     const canDelete = isAdmin && (isPrincipal || p.authorId === user.id || p.scope === teacherGrade);
     return '<article class="feed-post">' +
       '<div class="fp-head">' +
-        '<span class="fp-avatar">' + esc(who) + '</span>' +
+        avatarSpan('fp-avatar', p.author, photoOf(p.authorId)) +
         '<div class="fp-who"><strong>' + esc(p.author) + '</strong>' +
           '<span class="fp-meta"><span class="pill ' + roleCls + '">' + roleTxt + '</span> ' +
-          '<span class="pill pill-navy">' + esc(audience) + '</span> \u00b7 ' + fmtStamp(p.date) + '</span></div>' +
+          '<span class="pill pill-navy">' + esc(audience) + '</span> ' + statusPill(p) + '\u00b7 ' + fmtStamp(p.date) + '</span></div>' +
         (canDelete ? '<button type="button" class="btn-del" data-del-post="' + esc(p.id) + '" title="Delete post">&times;</button>' : '') +
+        (actions || '') +
       '</div>' +
       (p.title ? '<h4 class="fp-title">' + esc(p.title) + '</h4>' : '') +
       (p.tag ? '<span class="pill pill-amber fp-tag">' + esc(p.tag) + '</span>' : '') +
       (p.body ? '<p class="fp-body">' + esc(p.body).replace(/\n/g, '<br>') + '</p>' : '') +
-      (p.photo ? '<img class="fp-photo" src="' + p.photo + '" alt="Post photo">' : '') +
+      renderMediaHtml(p) +
     '</article>';
   }
 
   function renderFeed() {
     const list = visibleFeed();
-    const html = list.length
-      ? list.map(postHtml).join('')
-      : NEWS.map(newsItemHtml).join('');
-    $('newsList').innerHTML = html;
+    $('newsList').innerHTML =
+      (list.length ? list.map(p => postHtml(p)).join('') : NEWS.map(newsItemHtml).join('')) +
+      '<div class="feed-divider"><span>Past events &amp; school memories</span></div>' +
+      PAST_EVENTS.map(e => pastEventHtml(e)).join('');
+    mediaHydrate($('newsList'));
+
+    const minePending = loadFeed().filter(p => p.authorId === user.id && postStatus(p) === 'pending').length;
     $('newsFeedSub').textContent = isAdmin
       ? (list.length + ' post' + (list.length === 1 ? '' : 's') + ' \u00b7 ' +
-         (isPrincipal ? 'your announcements reach every portal user' : 'you see all-school posts and posts for ' + teacherGrade))
-      : 'Posted by the administration and your teachers';
-    $('dashNews').innerHTML = (list.length ? list : NEWS).slice(0, 3).map(p =>
-      p.date && p.scope !== undefined ? postHtml(p) : newsItemHtml(p)).join('');
+         (isPrincipal ? 'your announcements reach every portal user'
+           : (minePending ? minePending + ' waiting for the principal\u2019s approval'
+                          : 'approved posts for ' + teacherGrade)))
+      : 'Posted by the school and your teachers';
 
-    document.querySelectorAll('[data-del-post]').forEach(b => {
-      b.addEventListener('click', () => {
-        saveFeed(loadFeed().filter(x => x.id !== b.dataset.delPost));
-        renderFeed();
-        if (typeof renderAdminDash === 'function') renderAdminDash();
-        NBANA.toast('Post deleted.', 'success');
-      });
+    renderDashFeed(list);
+
+  }
+
+  /* Deleting works wherever a post appears (feed, approvals list, dashboards) */
+  document.addEventListener('click', (e) => {
+    const del = e.target && e.target.closest ? e.target.closest('[data-del-post]') : null;
+    if (!del) return;
+    const gone = loadFeed().find(x => x.id === del.dataset.delPost);
+    if (gone && gone.media) gone.media.forEach((m) => {
+      mediaDelete(m.key);
+      if (m.posterKey) mediaDelete(m.posterKey);
     });
+    saveFeed(loadFeed().filter(x => x.id !== del.dataset.delPost));
+    renderFeed();
+    renderApprovals();
+    refreshNotifs();
+    if (typeof renderAdminDash === 'function') renderAdminDash();
+    NBANA.toast('Post deleted.', 'success');
+  });
+
+  /* The dashboard feed: newest announcements, then every past school event below */
+  function renderDashFeed(list) {
+    const wrap = $('dashFeed');
+    if (!wrap) return;
+    const posts = list.length
+      ? list.map(p => postHtml(p)).join('')
+      : '<div class="feed-post"><span class="fp-body">No announcements yet \u2014 check back soon!</span></div>';
+    wrap.innerHTML = posts +
+      '<div class="feed-divider"><span>Past events &amp; school memories</span></div>' +
+      PAST_EVENTS.map(e => pastEventHtml(e)).join('');
+    mediaHydrate(wrap);
+    $('dashFeedSub').textContent = list.length + ' announcement' + (list.length === 1 ? '' : 's') +
+      ' \u00b7 scroll down for past school events';
+  }
+
+  /* ---------------- Approvals (principal / admin) ---------------- */
+  function approveCardHtml(p) {
+    return postHtml(p,
+      '<span class="fp-actions">' +
+        '<button type="button" class="btn-sm solid" data-approve="' + esc(p.id) + '">Approve</button>' +
+        '<button type="button" class="btn-sm" data-reject="' + esc(p.id) + '">Reject</button>' +
+      '</span>');
+  }
+
+  function renderApprovals() {
+    if (!isPrincipal || !$('apprList')) return;
+    const list = pendingPosts().sort((a, b) => new Date(b.date) - new Date(a.date));
+    $('apprSub').textContent = list.length
+      ? list.length + ' teacher post' + (list.length === 1 ? '' : 's') + ' waiting \u00b7 students cannot see them yet'
+      : 'Nothing waiting \u00b7 every teacher post has been reviewed';
+    $('apprList').innerHTML = list.length
+      ? list.map(p => approveCardHtml(p)).join('')
+      : '<div class="empty-state"><span class="es-icon">&#10003;</span>No posts waiting for approval.</div>';
+    mediaHydrate($('apprList'));
+
+    document.querySelectorAll('[data-approve]').forEach(b =>
+      b.addEventListener('click', () => reviewPost(b.dataset.approve, 'approved')));
+    document.querySelectorAll('[data-reject]').forEach(b =>
+      b.addEventListener('click', () => reviewPost(b.dataset.reject, 'rejected')));
+  }
+
+  function reviewPost(id, status) {
+    const feed = loadFeed();
+    const p = feed.find(x => x.id === id);
+    if (!p) return;
+    p.status = status;
+    p.reviewedBy = fullName;
+    p.reviewedAt = nowStamp();
+    saveFeed(feed);
+    renderApprovals();
+    renderFeed();
+    if (typeof renderAdminDash === 'function') renderAdminDash();
+    refreshNotifs();
+    NBANA.toast(status === 'approved'
+      ? 'Approved \u2014 ' + (p.scope === 'all' ? 'everyone' : p.scope + ' students') + ' can see this post now.'
+      : 'Post rejected. ' + p.author + ' will see that it was not approved.',
+      status === 'approved' ? 'success' : 'error');
+  }
+
+  /* ---------------- Password help (admins): users who forgot their password ---------------- */
+  const PWREQ_KEY = 'nbana.pwreq.v1';
+  function loadPwReqs() { return NBANA.store.get(PWREQ_KEY, []) || []; }
+  function savePwReqs(list) { NBANA.store.set(PWREQ_KEY, list); }
+  function pwOf(reqId) {
+    const r = loadPwReqs().find((x) => x.id === reqId);
+    if (!r) return '';
+    const acc = NBANA.getAccounts().find((a) => String(a.email).toLowerCase() === String(r.email).toLowerCase());
+    return (acc && acc.pwCode) ? NBANA.decPw(acc.pwCode) : (r.tempPw || '');
+  }
+  function setAccountPassword(email, newPw) {
+    const list = NBANA.getAccounts();
+    const i = list.findIndex((a) => String(a.email).toLowerCase() === String(email).toLowerCase());
+    if (i < 0) return;
+    list[i].passwordHash = NBANA.hash(newPw);
+    NBANA.store.set(NBANA.KEYS.accounts, list);
+    NBANA.rememberPw(list[i], newPw);
+  }
+  function renderPwReqs() {
+    if (!isPrincipal || !$('pwList')) return;
+    const reqs = loadPwReqs();
+    const waiting = reqs.filter((r) => r.status === 'waiting').length;
+    $('pwSub').textContent = waiting
+      ? waiting + ' user' + (waiting === 1 ? '' : 's') + ' waiting \u00b7 respond within 2\u20133 minutes'
+      : 'No open requests \u00b7 forgotten-password requests land here';
+    setBadge('navPwCount', waiting);
+    $('pwList').innerHTML = reqs.length ? reqs.map((r) => {
+      const pw = pwOf(r.id);
+      return '<div class="pw-req">' +
+        '<div class="pwr-info"><strong>' + esc(r.name || r.email) + '</strong>' +
+        '<span class="sub">' + esc(r.email) + ' \u00b7 asked ' + relTime(r.at) + ' ago</span></div>' +
+        (r.status === 'sent'
+          ? '<div class="pwr-row"><span class="pill pill-green">Sent</span>' +
+            (pw ? '<span class="pwr-pw">' + esc(pw) + '</span>' : '') + '</div>'
+          : '<div class="pwr-row">' +
+            (pw ? '<button type="button" class="btn-sm" data-pwreveal="' + esc(r.id) + '">Show password</button>' : '') +
+            '<button type="button" class="btn-sm" data-pwtemp="' + esc(r.id) + '">Set temporary password</button>' +
+            '<button type="button" class="btn-sm solid" data-pwsend="' + esc(r.id) + '">Mark as sent</button>' +
+          '</div>' +
+          '<span class="sub">' + (pw
+            ? 'Check the user\u2019s identity, then tap <b>Mark as sent</b> so they can see it on the sign-in page.'
+            : 'No stored password on file \u2014 set a temporary one, then mark it sent.') + '</span>') +
+      '</div>';
+    }).join('') : '<div class="empty-state"><span class="es-icon">&#128273;</span>No forgot-password requests.</div>';
+
+    $('pwList').querySelectorAll('[data-pwreveal]').forEach((b) =>
+      b.addEventListener('click', () => {
+        b.outerHTML = '<span class="pwr-pw">' + esc(pwOf(b.dataset.pwreveal)) + '</span>';
+      }));
+    $('pwList').querySelectorAll('[data-pwtemp]').forEach((b) =>
+      b.addEventListener('click', () => {
+        const r = loadPwReqs().find((x) => x.id === b.dataset.pwtemp);
+        if (!r) return;
+        const t = (window.prompt('Type a temporary password (6+ characters) for ' + r.email) || '').trim();
+        if (!t) return;
+        if (t.length < 6) { NBANA.toast('Temporary password must be at least 6 characters.', 'error'); return; }
+        setAccountPassword(r.email, t);
+        const reqs2 = loadPwReqs();
+        const rr = reqs2.find((x) => x.id === r.id);
+        if (rr) { rr.tempPw = t; savePwReqs(reqs2); }
+        NBANA.toast('Temporary password set for ' + r.email + '.', 'success');
+        renderPwReqs();
+      }));
+    $('pwList').querySelectorAll('[data-pwsend]').forEach((b) =>
+      b.addEventListener('click', () => {
+        const reqs2 = loadPwReqs();
+        const r = reqs2.find((x) => x.id === b.dataset.pwsend);
+        if (!r) return;
+        r.status = 'sent';
+        r.sentAt = nowStamp();
+        savePwReqs(reqs2);
+        renderPwReqs();
+        refreshNotifs();
+        NBANA.toast('Password sent \u2014 ' + r.email + ' can now see it on the sign-in page.', 'success');
+      }));
   }
 
   /* ---------------- Composer (principal: all users, teacher: own grade) ---------------- */
-  let pendingPhoto = null;
+  /* Facebook-style attachments: up to 6 photos, or photos plus one short video */
+  const MAX_MEDIA = 6;
+  const MEDIA_VIDEO_LIMIT = 60 * 1024 * 1024;   // ~60 MB: a few minutes of phone video
+  const POST_PHOTO_MAX = 1140;                  // px cap so event photos stay light
+  let pendingMedia = [];
+
+  function mediaCountByKind(kind) { return pendingMedia.filter(m => m.kind === kind).length; }
+
+  function fileToDataURL(file) {
+    return new Promise((resolve) => {
+      const r = new FileReader();
+      r.onload = () => resolve(r.result);
+      r.onerror = () => resolve(null);
+      r.readAsDataURL(file);
+    });
+  }
+
+  function clearComposerMedia() {
+    pendingMedia.forEach((m) => {
+      if (m.preview && m.preview.slice(0, 5) === 'blob:') URL.revokeObjectURL(m.preview);
+    });
+    pendingMedia = [];
+    refreshComposerMedia();
+  }
+
+  function refreshComposerMedia() {
+    const chips = $('mediaChips');
+    if (chips) {
+      chips.innerHTML = pendingMedia.map((m, i) =>
+        '<span class="chip">' +
+          (m.kind === 'video'
+            ? (m.poster ? '<img src="' + m.poster + '" alt="">'
+                        : '<video src="' + m.preview + '" muted></video>') + '<span class="chip-tag">Video</span>'
+            : '<img src="' + m.preview + '" alt="">') +
+          '<button type="button" data-chip-x="' + i + '" title="Remove">&times;</button>' +
+        '</span>').join('');
+      chips.querySelectorAll('[data-chip-x]').forEach((b) =>
+        b.addEventListener('click', () => { pendingMedia.splice(Number(b.dataset.chipX), 1); refreshComposerMedia(); }));
+    }
+    const add = $('mediaAddBtn');
+    if (add) add.hidden = pendingMedia.length >= MAX_MEDIA;
+    const hint = $('mediaHint');
+    if (hint) hint.textContent = pendingMedia.length
+      ? pendingMedia.length + ' attached \u00b7 photos + 1 short video (under 60 MB)'
+      : 'Up to 6 photos, or photos plus one short video';
+  }
+
+  function addComposerFiles(fileList) {
+    const files = Array.from(fileList || []);
+    let queue = Promise.resolve();
+    files.forEach((file) => {
+      queue = queue.then(() => new Promise((done) => {
+        if (pendingMedia.length >= MAX_MEDIA) {
+          NBANA.toast('Up to ' + MAX_MEDIA + ' photos/videos per post.', 'error');
+          done(); return;
+        }
+        if (/^video\//.test(file.type)) {
+          if (mediaCountByKind('video')) { NBANA.toast('Only one video per post \u2014 the rest can be photos.', 'error'); done(); return; }
+          if (file.size > MEDIA_VIDEO_LIMIT) {
+            NBANA.toast('That video is too large (over 60 MB). Please trim it or pick a shorter clip.', 'error');
+            done(); return;
+          }
+          const preview = URL.createObjectURL(file);
+          pickVideoPoster(file).then((poster) => {
+            pendingMedia.push({ id: 'm' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), kind: 'video', file, poster, preview });
+            refreshComposerMedia();
+            done();
+          });
+        } else if (/^image\//.test(file.type)) {
+          readImage(file, (data) => {
+            if (!data) { done(); return; }
+            pendingMedia.push({ id: 'm' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), kind: 'photo', file, preview: data });
+            refreshComposerMedia();
+            done();
+          }, POST_PHOTO_MAX);
+        } else {
+          NBANA.toast('Please pick photos (JPG/PNG) or MP4 videos only.', 'error');
+          done();
+        }
+      }));
+    });
+  }
 
   function composerSetup() {
     if (!isAdmin) return;
     $('btnCompose').hidden = false;
     $('composerPanel').hidden = true;
-    $('composerTitle').textContent = isPrincipal ? 'New announcement' : 'New post for ' + teacherGrade;
+    $('composerTitle').textContent = isPrincipal ? 'New post' : 'New post for ' + teacherGrade;
     $('composerAudience').textContent = 'Audience: ' +
       (isPrincipal ? 'all users \u2014 students, teachers, and admins' : teacherGrade + ' students only');
     $('composerHint').textContent = isPrincipal
-      ? 'Everyone will see this, including teacher accounts.'
-      : 'Only students enrolled in ' + teacherGrade + ' will see this post.';
+      ? 'Everyone will see this immediately, including teacher accounts.'
+      : 'Your post goes to the principal for approval before ' + teacherGrade + ' students see it.';
 
     $('btnCompose').addEventListener('click', () => {
       $('composerPanel').hidden = !$('composerPanel').hidden;
       if (!$('composerPanel').hidden) $('postBody').focus();
     });
 
-    $('postPhoto').addEventListener('change', (e) => {
-      readImage(e.target.files[0], (data) => {
-        pendingPhoto = data;
-        $('photoPreview').hidden = !data;
-        if (data) $('photoImg').src = data;
-      });
+    $('postMedia').addEventListener('change', (e) => {
+      addComposerFiles(e.target.files);
+      e.target.value = '';
     });
-    $('photoRemove').addEventListener('click', () => {
-      pendingPhoto = null;
-      $('postPhoto').value = '';
-      $('photoPreview').hidden = true;
-    });
+    $('mediaAddBtn').addEventListener('click', () => $('postMedia').click());
 
     $('composerForm').addEventListener('submit', (e) => {
       e.preventDefault();
@@ -302,26 +825,52 @@
       bodyEl.parentElement.querySelector('.error').classList.toggle('show', !ok);
       if (!ok) { NBANA.toast('Please write a message before posting.', 'error'); return; }
 
-      const feed = loadFeed();
-      feed.unshift({
-        id: 'p_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-        authorId: user.id,
-        author: user.fullName || user.firstName,
-        role: role,
-        scope: isPrincipal ? 'all' : teacherGrade,
-        title: $('postTitle').value.trim(),
-        body: bodyEl.value.trim(),
-        photo: pendingPhoto,
-        date: nowStamp()
-      });
-      saveFeed(feed);
-      $('composerForm').reset();
-      pendingPhoto = null;
-      $('photoPreview').hidden = true;
-      $('composerPanel').hidden = true;
-      renderFeed();
-      renderAdminDash();
-      NBANA.toast(isPrincipal ? 'Announcement posted to all users.' : 'Post shared with ' + teacherGrade + ' students.', 'success');
+      const submitBtn = e.target.querySelector('button[type="submit"]');
+      const finish = (media) => {
+        const feed = loadFeed();
+        feed.unshift({
+          id: 'p_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+          authorId: user.id,
+          author: user.fullName || user.firstName,
+          role: role,
+          scope: isPrincipal ? 'all' : teacherGrade,
+          status: isPrincipal ? 'approved' : 'pending',
+          title: $('postTitle').value.trim(),
+          body: bodyEl.value.trim(),
+          media: media,
+          date: nowStamp()
+        });
+        saveFeed(feed);
+        $('composerForm').reset();
+        clearComposerMedia();
+        $('composerPanel').hidden = true;
+        renderFeed();
+        renderApprovals();
+        refreshNotifs();
+        renderAdminDash();
+        NBANA.toast(isPrincipal
+          ? 'Announcement posted to all users.'
+          : 'Post sent \u2014 the principal will approve it before ' + teacherGrade + ' students see it.',
+          'success');
+      };
+
+      if (!pendingMedia.length) { finish(null); return; }
+      if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Uploading\u2026'; }
+      const media = pendingMedia.map((m) => ({
+        key: 'feed_' + m.id,
+        kind: m.kind,
+        posterKey: m.kind === 'video' ? 'poster_feed_' + m.id : null
+      }));
+      const saves = pendingMedia.map((m) =>
+        (m.kind === 'video' ? fileToDataURL(m.file) : Promise.resolve(m.preview))
+          .then((data) => data ? mediaPut('feed_' + m.id, data) : null)
+          .then(() => (m.kind === 'video' && m.poster ? mediaPut('poster_feed_' + m.id, m.poster) : null)));
+      Promise.all(saves)
+        .catch(() => {})
+        .then(() => {
+          if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Post'; }
+          finish(media);
+        });
     });
   }
 
@@ -1214,6 +1763,15 @@
     const st = user.student || {};
     const addr = [a.house, a.barangay, a.city, a.province, a.zip].filter(Boolean).join(', ');
 
+    const pp = $('profPhoto');
+    if (pp) pp.innerHTML = user.photo
+      ? '<img src="' + user.photo + '" alt="Profile picture">'
+      : '<span class="pp-empty">No photo yet</span>';
+    const pe = $('peAvatar');
+    if (pe) pe.innerHTML = user.photo
+      ? '<img src="' + user.photo + '" alt="Profile picture">'
+      : '<span class="pp-empty">' + esc(initialsOf(fullName)) + '</span>';
+
     $('profPersonal').innerHTML =
       row('Full name', fullName) +
       row('Date of birth', user.birthdate ? fmtDate(user.birthdate) : '') +
@@ -1247,20 +1805,24 @@
 
     $('profAccount').innerHTML =
       row('Login email', user.email) +
-      row('Portal role', isPrincipal ? '<span class="pill pill-navy">Full Admin \u00b7 Principal</span>' :
+      row('Portal role', isPrincipal ? '<span class="pill pill-navy">' + adminTitle + '</span>' :
         (isTeacher ? '<span class="pill pill-green">Teacher \u00b7 ' + esc(teacherGrade) + '</span>' :
           '<span class="pill pill-amber">Student</span>')) +
       row('Member since', fmtDate(user.createdAt)) +
-      row('Password', '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022') +
+      row('Password', '<span id="pwShown" data-open="">\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022</span> ' +
+        '<button type="button" class="pw-eye" id="pwEye" title="Show / hide password">&#128065;</button> ' +
+        '<button type="button" class="btn-sm" id="btnPwChange">Change</button>') +
       row('Account status', '<span class="pill pill-green">Active</span>');
   }
 
   function profileInit() {
-    if (!isAdmin) return;
+    /* Every portal user - students included - may edit their own information */
     $('btnProfEdit').hidden = false;
     /* Admins have no enrollment record of their own */
-    const stuPanel = $('profStudent').closest('.panel');
-    if (stuPanel) stuPanel.hidden = true;
+    if (isAdmin) {
+      const stuPanel = $('profStudent').closest('.panel');
+      if (stuPanel) stuPanel.hidden = true;
+    }
 
     $('btnProfEdit').addEventListener('click', () => {
       const a = user.address || {};
@@ -1312,19 +1874,106 @@
       renderProfile();
       NBANA.toast('Profile updated.', 'success');
     });
+
+    /* Profile picture - saved the moment it is chosen */
+    $('pfPhoto').addEventListener('change', (e) => {
+      readImage(e.target.files[0], (data) => {
+        if (!data) return;
+        user.photo = data;
+        saveUser(user);
+        paintAvatar();
+        renderProfile();
+        renderFeed();
+        NBANA.toast('Profile picture updated.', 'success');
+      }, 360);
+    });
+
+    $('btnPhotoRemove').addEventListener('click', () => {
+      if (!user.photo) { NBANA.toast('You have no photo to remove.', 'error'); return; }
+      user.photo = '';
+      saveUser(user);
+      paintAvatar();
+      renderProfile();
+      renderFeed();
+      NBANA.toast('Profile picture removed.', 'success');
+    });
+
+    if ($('btnPhotoAdd')) $('btnPhotoAdd').addEventListener('click', () => {
+      $('profEditor').hidden = false;
+      $('profEditor').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      $('pfPhoto').click();
+    });
+
+    /* Password change box (built once, lives inside the Account panel) */
+    const accBody = $('profAccount') && $('profAccount').closest('.panel-body');
+    if (accBody && !$('pwChangeBox')) {
+      const div = document.createElement('div');
+      div.id = 'pwChangeBox';
+      div.hidden = true;
+      div.innerHTML = '<div class="form-field"><label>Current password</label><input class="input" type="password" id="pwCur" autocomplete="current-password"></div>' +
+        '<div class="form-field"><label>New password (6+ characters)</label><input class="input" type="password" id="pwNew" autocomplete="new-password"></div>' +
+        '<div class="form-field"><label>Repeat new password</label><input class="input" type="password" id="pwNew2" autocomplete="new-password"></div>' +
+        '<div class="pw-actions"><button type="button" class="btn-sm solid" id="btnPwSave">Save password</button>' +
+        '<button type="button" class="btn-sm" id="btnPwCancel">Cancel</button></div>';
+      accBody.appendChild(div);
+    }
   }
 
-  /* ---------------- Dashboard banner ---------------- */
+  /* Password eye + change-password (delegated: the profile re-renders often) */
+  document.addEventListener('click', (e) => {
+    const t = e.target;
+    if (!t || !t.id) return;
+    if (t.id === 'pwEye') {
+      const span = $('pwShown');
+      if (!span) return;
+      if (span.dataset.open === '1') { span.textContent = '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022'; span.dataset.open = ''; return; }
+      if (!user.pwCode) { NBANA.toast('Not stored on this device yet \u2014 it appears after your next sign-in, or change your password now.', 'error'); return; }
+      span.textContent = NBANA.decPw(user.pwCode);
+      span.dataset.open = '1';
+    }
+    if (t.id === 'btnPwChange') {
+      const box = $('pwChangeBox');
+      if (!box) return;
+      box.hidden = !box.hidden;
+      if (!box.hidden) { $('pwCur').value = ''; $('pwNew').value = ''; $('pwNew2').value = ''; $('pwCur').focus(); }
+    }
+    if (t.id === 'btnPwCancel') { const box = $('pwChangeBox'); if (box) box.hidden = true; }
+    if (t.id === 'btnPwSave') {
+      const cur = $('pwCur').value, nw = $('pwNew').value, n2 = $('pwNew2').value;
+      if (NBANA.hash(cur) !== user.passwordHash) { NBANA.toast('Current password is incorrect.', 'error'); return; }
+      if (nw.length < 6) { NBANA.toast('New password must be at least 6 characters.', 'error'); return; }
+      if (nw !== n2) { NBANA.toast('New passwords do not match.', 'error'); return; }
+      const list = NBANA.getAccounts();
+      const i = list.findIndex((a) => a.id === user.id);
+      if (i > -1) {
+        list[i].passwordHash = NBANA.hash(nw);
+        NBANA.store.set(NBANA.KEYS.accounts, list);
+        user.passwordHash = list[i].passwordHash;
+      }
+      NBANA.rememberPw(user, nw);
+      $('pwChangeBox').hidden = true;
+      $('pwShown').textContent = '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022';
+      $('pwShown').dataset.open = '';
+      NBANA.toast('Password changed. Use it on your next sign-in.', 'success');
+    }
+  });
+
+  /* ---------------- Dashboard banner: greeting + a happy quote ---------------- */
   function renderBanner() {
-    const hour = new Date().getHours();
-    const kicker = hour < 12 ? 'Good morning' : (hour < 18 ? 'Good afternoon' : 'Good evening');
-    const s = NBANA.billingSummary(user);
-    const open = (user.tasks || []).filter(t => !t.done).length;
-    $('wbKicker').textContent = kicker;
-    $('wbName').textContent = fullName;
-    $('wbText').textContent = gradeLevel + (section && section !== 'TBD' ? ' \u2022 Section ' + section : '') +
-      ' \u2022 School year ' + schoolYear + '. You have ' + open + ' open ' + (open === 1 ? 'task' : 'tasks') +
-      ' and your tuition balance is ' + money(s.balance) + '.';
+    const hello = greeting();
+    $('wbKicker').textContent = hello;
+    if ($('wbEmoji')) $('wbEmoji').textContent = greetEmoji();
+
+    if (isAdmin) {
+      $('wbName').textContent = fullName;
+      $('wbText').textContent = 'School year ' + schoolYear + ' \u00b7 everything you need is in the sidebar.';
+    } else {
+      $('wbName').textContent = 'Hi, ' + (user.firstName || 'friend') + '!';
+      $('wbText').textContent =
+        gradeLevel + (section && section !== 'TBD' ? ' \u2022 Section ' + section : '') +
+        ' \u2022 School year ' + schoolYear + '. Have a happy day of learning!';
+    }
+    renderVerse();
   }
 
 
@@ -1355,29 +2004,154 @@
 
   function renderStudents() {
     const list = allStudents();
-    $('stuCount').textContent = list.length + ' student account' + (list.length === 1 ? '' : 's') + ' \u00b7 editable records';
+    const enrolled = activeStudents().length;
+    $('stuCount').textContent = enrolled + ' enrolled student account' + (enrolled === 1 ? '' : 's') +
+      (list.length > enrolled ? ' \u00b7 ' + (list.length - enrolled) + ' graduated' : '') + ' \u00b7 editable records';
     $('stuRows').innerHTML = list.length ? list.map(a => {
       const s = NBANA.billingSummary(a);
       const st = a.student || {};
-      return '<tr><td><strong>' + esc(nameOf(a)) + '</strong><br><span class="sc-sub">' + esc(a.email) + '</span></td>' +
-        '<td>' + esc(st.gradeLevel || '\u2014') + '</td>' +
+      const gone = isGraduated(a);
+      const rev = a.photoReview || null;
+      return '<tr><td>' + avatarSpan('st-avatar', nameOf(a), a.photo) + '</td>' +
+        '<td><strong>' + esc(nameOf(a)) + '</strong><br><span class="sc-sub">' + esc(a.email) + '</span>' +
+        (rev && rev.status === 'removed' ? '<br><span class="pill pill-red">Photo removed</span>' : '') +
+        (rev && rev.status === 'ok' ? '<br><span class="pill pill-green">Photo checked</span>' : '') +
+        '</td>' +
+        '<td>' + (gone ? '<span class="pill pill-navy">Graduated</span>' : esc(st.gradeLevel || '\u2014')) + '</td>' +
         '<td>' + esc(st.section || '\u2014') + '</td>' +
         '<td>' + esc(st.lrn || '\u2014') + '</td>' +
         '<td class="num">' + money(s.balance) + '</td>' +
-        '<td><button type="button" class="btn-sm" data-stuedit="' + esc(a.id) + '">Edit</button></td></tr>';
-    }).join('') : '<tr><td colspan="6"><div class="empty-state">No student accounts yet.</div></td></tr>';
+        '<td><button type="button" class="btn-sm" data-stuedit="' + esc(a.id) + '">Edit</button>' +
+        (a.photo ? ' <button type="button" class="btn-sm" data-photorev="' + esc(a.id) + '">Photo</button>' : '') +
+        '</td></tr>';
+    }).join('') : '<tr><td colspan="7"><div class="empty-state">No student accounts yet.</div></td></tr>';
 
     document.querySelectorAll('[data-stuedit]').forEach(b => {
       b.addEventListener('click', () => openStuEditor(b.dataset.stuedit));
     });
+    document.querySelectorAll('[data-photorev]').forEach(b => {
+      b.addEventListener('click', () => openPhotoReview(b.dataset.photorev));
+    });
+  }
+
+  /* ---------------- Profile picture moderation (principal) ---------------- */
+  let photoTargetId = null;
+
+  function closePhotoReview() {
+    photoTargetId = null;
+    $('photoReview').hidden = true;
+    $('prComment').value = '';
+    $('prComment').classList.remove('invalid');
+    $('prComment').parentElement.querySelector('.error').classList.remove('show');
+  }
+
+  function openPhotoReview(id) {
+    const a = NBANA.findAccount(id);
+    if (!a || !a.photo) { NBANA.toast('That student has no profile picture.', 'error'); return; }
+    photoTargetId = id;
+    const st = a.student || {};
+    $('prTitle').textContent = 'Profile photo \u00b7 ' + nameOf(a);
+    $('prPhoto').innerHTML = '<img src="' + a.photo + '" alt="Student profile picture">';
+    $('prWho').textContent = nameOf(a) + ' \u00b7 ' + (st.gradeLevel || '') +
+      (st.section ? ' \u00b7 ' + st.section : '') + ' \u00b7 ' + a.email;
+    $('prComment').value = '';
+    $('prComment').classList.remove('invalid');
+    $('photoReview').hidden = false;
+    $('photoReview').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function photoReviewInit() {
+    if (!isPrincipal) return;
+    $('btnPrClose').addEventListener('click', closePhotoReview);
+
+    $('btnPrOk').addEventListener('click', () => {
+      const a = photoTargetId ? NBANA.findAccount(photoTargetId) : null;
+      if (!a) return;
+      a.photoReview = { status: 'ok', by: fullName, at: nowStamp() };
+      saveUser(a);
+      closePhotoReview();
+      renderStudents();
+      NBANA.toast('Marked as okay \u2014 the picture stays.', 'success');
+    });
+
+    $('btnPrRemove').addEventListener('click', () => {
+      const a = photoTargetId ? NBANA.findAccount(photoTargetId) : null;
+      if (!a) return;
+      const msg = $('prComment').value.trim();
+      const ok = msg !== '';
+      $('prComment').classList.toggle('invalid', !ok);
+      $('prComment').parentElement.querySelector('.error').classList.toggle('show', !ok);
+      if (!ok) { NBANA.toast('Please write why the picture is being removed.', 'error'); return; }
+
+      a.photo = '';
+      a.photoReview = { status: 'removed', by: fullName, at: nowStamp(), reason: msg };
+      saveUser(a);
+      addNotice(a.id, 'Your profile picture was removed', msg);
+      closePhotoReview();
+      renderStudents();
+      renderNotices();
+      renderFeed();
+      refreshNotifs();
+      NBANA.toast('Picture removed \u2014 ' + a.firstName + ' was sent a message.', 'success');
+    });
+  }
+
+  /* ---------------- Faculty & staff directory ---------------- */
+  function renderFaculty() {
+    if (!$('facultyRows')) return;
+    const staff = NBANA.getAccounts().filter(a => a.role === 'teacher' || NBANA.isAdminRole(a.role));
+    const portalPill = '<span class="pill pill-green">Portal account</span>';
+    const rows = [];
+
+    GRADES.forEach(g => {
+      const acct = staff.find(a => a.role === 'teacher' && a.assignedGrade === g);
+      const name = acct ? nameOf(acct) : adviserFor(g);
+      rows.push({
+        name: name,
+        role: 'Class Adviser',
+        grade: g,
+        access: acct ? portalPill + ' <span class="sc-sub">' + esc(acct.email) + '</span>'
+                     : '<span class="pill pill-amber">No portal account yet</span>'
+      });
+    });
+
+    staff.filter(a => NBANA.isAdminRole(a.role)).forEach(a => rows.push({
+      name: nameOf(a),
+      role: a.role === 'principal' ? 'Principal' : 'Administrator',
+      grade: '\u2014',
+      access: portalPill + ' <span class="sc-sub">' + esc(a.email) + '</span>'
+    }));
+
+    staff.filter(a => a.role === 'teacher' && GRADES.indexOf(a.assignedGrade) === -1).forEach(a => rows.push({
+      name: nameOf(a), role: 'Teacher', grade: a.assignedGrade || '\u2014', access: portalPill
+    }));
+
+    $('facultyRows').innerHTML = rows.map(r =>
+      '<tr><td><strong>' + esc(r.name) + '</strong></td><td>' + esc(r.role) + '</td>' +
+      '<td>' + esc(r.grade) + '</td><td>' + r.access + '</td></tr>').join('');
+
+    const advisers = rows.filter(r => r.role === 'Class Adviser' && r.access.indexOf('pill-green') > -1).length;
+    $('facultySub').textContent = GRADES.length + ' grade levels \u00b7 ' + advisers +
+      ' adviser' + (advisers === 1 ? '' : 's') + ' with a portal account';
+
+    const prin = staff.find(a => a.role === 'principal');
+    $('facultyAdmin').innerHTML =
+      row('Principal', prin ? nameOf(prin) : 'School Principal') +
+      row('School office', 'Tuition, records, and enrollment concerns') +
+      row('Class adviser', 'Your teacher handles daily classroom matters') +
+      row('Written concerns', 'Use Contact School to send a message to the office');
   }
 
   function toggleRoleFields() {
-    const asTeacher = $('sfRole').value === 'teacher';
+    const r = $('sfRole').value;
+    const asTeacher = r === 'teacher';
+    const asStaff = asTeacher || r === 'admin';
     $('sfTGradeField').hidden = !asTeacher;
-    $('sfGradeField').hidden = asTeacher;
-    $('sfSectionField').hidden = asTeacher;
-    $('sfLrnField').hidden = asTeacher;
+    $('sfGradeField').hidden = asStaff;
+    $('sfSectionField').hidden = asStaff;
+    $('sfLrnField').hidden = asStaff;
+    /* New teacher / admin accounts must be unlocked with the staff secret code */
+    $('sfCodeField').hidden = !(asStaff && stuEditingId === 'new');
   }
 
   function openStuEditor(id) {
@@ -1393,8 +2167,9 @@
     $('sfLast').value = (a && a.lastName) || '';
     $('sfEmail').value = (a && a.email) || '';
     $('sfPhone').value = (a && a.phone) || '';
-    $('sfRole').value = (a && a.role === 'teacher') ? 'teacher' : 'student';
-    $('sfGrade').value = st.gradeLevel || GRADES[4];
+    const aRole = a ? (a.role === 'principal' ? 'admin' : (a.role || 'student')) : 'student';
+    $('sfRole').value = (aRole === 'teacher' || aRole === 'admin') ? aRole : 'student';
+    $('sfGrade').value = GRADES.indexOf(st.gradeLevel) > -1 ? st.gradeLevel : GRADES[4];
     $('sfSection').value = st.section || '';
     $('sfLrn').value = st.lrn || '';
     $('sfTGrade').value = (a && a.assignedGrade) || teacherGrade;
@@ -1406,6 +2181,7 @@
     $('sfGRel').value = gd.relationship || '';
     $('sfGPhone').value = gd.phone || '';
     $('sfPw').value = '';
+    $('sfCode').value = '';
     toggleRoleFields();
     $('stuEditor').hidden = false;
     $('stuEditor').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1446,7 +2222,9 @@
         NBANA.toast('Another account already uses that email.', 'error');
         return;
       }
-      const asTeacher = $('sfRole').value === 'teacher';
+      const newRole = $('sfRole').value;
+      const asTeacher = newRole === 'teacher';
+      const asAdmin = newRole === 'admin';
       let pw = '';
       if (isNew) {
         pw = $('sfPw').value;
@@ -1454,6 +2232,14 @@
         $('sfPw').classList.toggle('invalid', !pwOk);
         $('sfPw').parentElement.querySelector('.error').classList.toggle('show', !pwOk);
         if (!pwOk) { NBANA.toast('Initial password must be at least 6 characters.', 'error'); return; }
+
+        /* Teacher and admin accounts are locked behind the staff secret code */
+        if (asTeacher || asAdmin) {
+          const codeOk = NBANA.checkStaffCode($('sfCode').value);
+          $('sfCode').classList.toggle('invalid', !codeOk);
+          $('sfCode').parentElement.querySelector('.error').classList.toggle('show', !codeOk);
+          if (!codeOk) { NBANA.toast('That staff secret code is not valid.', 'error'); return; }
+        }
       }
 
       const profile = {
@@ -1463,7 +2249,7 @@
         fullName: [first, $('sfMiddle').value.trim(), last].filter(Boolean).join(' '),
         email: email,
         phone: $('sfPhone').value.trim(),
-        role: asTeacher ? 'teacher' : 'student',
+        role: newRole,
         address: {
           house: $('sfHouse').value.trim(), barangay: $('sfBrgy').value.trim(),
           city: $('sfCity').value.trim(), province: $('sfProv').value.trim(), zip: ''
@@ -1475,21 +2261,23 @@
 
       if (isNew) {
         if (asTeacher) profile.assignedGrade = $('sfTGrade').value;
-        else profile.student = {
+        else if (!asAdmin) profile.student = {
           lrn: $('sfLrn').value.trim(),
           gradeLevel: $('sfGrade').value,
           section: $('sfSection').value.trim() || 'TBD',
-          schoolYear: '2026\u20132027',
+          schoolYear: NBANA.getSchoolYear(),
           semester: 'First Semester'
         };
         const created = NBANA.createAccount(profile, pw);
-        NBANA.toast('Account created for ' + created.fullName + '.', 'success');
+        NBANA.toast(NBANA.roleLabel(newRole) + ' account created for ' + created.fullName + '.', 'success');
       } else {
         const a = NBANA.findAccount(stuEditingId);
         if (!a) { NBANA.toast('Account not found.', 'error'); return; }
         Object.assign(a, profile);
         if (asTeacher) {
           a.assignedGrade = $('sfTGrade').value;
+        } else if (asAdmin) {
+          delete a.assignedGrade;
         } else {
           a.student = Object.assign({}, a.student, {
             lrn: $('sfLrn').value.trim(),
@@ -1505,9 +2293,113 @@
       close();
       fillStudentSelects();
       renderStudents();
+      renderPromotePanel();
       renderGrades();
       renderAttendance();
       renderFees();
+    });
+  }
+
+  /* ---------------- School year change & grade promotion (principal) ---------------- */
+  let pendingYear = null;
+
+  /* 'Grade 5' -> 'Grade 6'; last grade leaves the school */
+  function nextGrade(grade) {
+    const i = GRADES.indexOf(grade);
+    if (i === -1) return null;
+    return i === GRADES.length - 1 ? GRADUATED : GRADES[i + 1];
+  }
+
+  /* Every enrolled student, grouped by the move they will make */
+  function promotionPlan() {
+    const moves = {};
+    activeStudents().forEach(a => {
+      const from = (a.student && a.student.gradeLevel) || '';
+      const to = nextGrade(from);
+      if (!to) return;
+      const k = from + '\u0000' + to;
+      if (!moves[k]) moves[k] = { from: from, to: to, n: 0 };
+      moves[k].n++;
+    });
+    return Object.keys(moves).map(k => moves[k]).sort((a, b) => GRADES.indexOf(a.from) - GRADES.indexOf(b.from));
+  }
+
+  function renderPromotePanel() {
+    if (!isPrincipal) return;
+    const now = NBANA.getSchoolYear();
+    $('promoteYearNow').textContent = now;
+    const active = activeStudents().length;
+    const grads = allStudents().length - active;
+    $('promoteCount').textContent = active + ' can move up' + (grads ? ' \u00b7 ' + grads + ' already graduated' : '');
+    if (!$('syInput').value) $('syInput').value = NBANA.nextSchoolYear(now);
+  }
+
+  function promotionInit() {
+    if (!isPrincipal) return;
+    $('promotePanel').hidden = false;
+    renderPromotePanel();
+
+    const hidePlan = () => { pendingYear = null; $('promoteConfirm').hidden = true; };
+
+    $('btnPromotePlan').addEventListener('click', () => {
+      const year = $('syInput').value.trim();
+      const formatted = /^\d{4}\s*[-\u2013\u2014]\s*\d{4}$/.test(year);
+      const same = year === NBANA.getSchoolYear();
+      $('syInput').classList.toggle('invalid', !formatted || same);
+      $('syInput').parentElement.querySelector('.error').classList.toggle('show', !formatted || same);
+      if (!formatted) { NBANA.toast('Enter the school year like 2027-2028.', 'error'); return; }
+      if (same) { NBANA.toast('That is already the current school year.', 'error'); return; }
+
+      const plan = promotionPlan();
+      if (!plan.length) { NBANA.toast('No enrolled students to promote.', 'error'); return; }
+
+      const total = plan.reduce((s, m) => s + m.n, 0);
+      const grads = plan.filter(m => m.to === GRADUATED).reduce((s, m) => s + m.n, 0);
+      pendingYear = year;
+      $('promoteSummary').innerHTML = 'School year <b>' + esc(NBANA.getSchoolYear()) + '</b> \u2192 <b>' + esc(year) +
+        '</b>. ' + total + ' student' + (total === 1 ? '' : 's') + ' will move up one grade level' +
+        (grads ? ', and ' + grads + ' Grade 6 student' + (grads === 1 ? '' : 's') + ' will graduate' : '') + '.';
+      $('promoteList').innerHTML = plan.map(m =>
+        '<li><span>' + esc(m.from) + ' \u2192 ' + (m.to === GRADUATED ? '<b>Graduated</b>' : esc(m.to)) +
+        '</span><span class="pl-count">' + m.n + ' student' + (m.n === 1 ? '' : 's') + '</span></li>'
+      ).join('');
+      $('promoteConfirm').hidden = false;
+      NBANA.toast('Review the promotion list, then confirm.', 'success');
+    });
+
+    $('btnPromoteCancel').addEventListener('click', hidePlan);
+
+    $('btnPromoteGo').addEventListener('click', () => {
+      const year = pendingYear;
+      if (!year) return;
+      const accounts = NBANA.getAccounts();
+      let moved = 0, grads = 0;
+      accounts.forEach(a => {
+        if ((a.role || 'student') !== 'student') return;
+        const st = a.student;
+        if (!st || st.status === GRADUATED) return;
+        const to = nextGrade(st.gradeLevel);
+        if (!to) return;
+        if (to === GRADUATED) {
+          st.gradeLevel = GRADUATED;
+          st.status = GRADUATED;
+          st.graduatedYear = year;
+          grads++;
+        } else {
+          st.gradeLevel = to;
+          moved++;
+        }
+        st.schoolYear = year;
+        st.promotedAt = new Date().toISOString();
+        if (a.billing) a.billing.schoolYear = year;
+      });
+      NBANA.store.set(NBANA.KEYS.accounts, accounts);
+      NBANA.setSchoolYear(year);
+      pendingYear = null;
+      $('promoteConfirm').hidden = true;
+      NBANA.toast('School year ' + year + ': ' + moved + ' promoted, ' + grads + ' graduated. Reloading\u2026', 'success');
+      /* Reload so every panel picks up the new grade levels and school year */
+      setTimeout(() => window.location.reload(), 1600);
     });
   }
 
@@ -1523,7 +2415,7 @@
       dash.appendChild(box);
     }
 
-    const students = allStudents();
+    const students = activeStudents();
     const teachers = NBANA.getAccounts().filter(a => a.role === 'teacher');
     const feed = visibleFeed();
     const hour = new Date().getHours();
@@ -1587,18 +2479,705 @@
         '<div class="panel"><div class="panel-head"><div><h3>Latest announcements</h3><span class="sub">School feed</span></div>' +
         '<button type="button" class="btn-sm" data-goto="news">See all</button></div>' +
         '<div class="panel-body flush feed">' +
-        (feed.length ? feed.slice(0, 3).map(postHtml).join('') : NEWS.slice(0, 2).map(newsItemHtml).join('')) +
+        (feed.length ? feed.slice(0, 3).map(p => postHtml(p)).join('') : NEWS.slice(0, 2).map(newsItemHtml).join('')) +
         '</div></div>' +
       '</div>';
+    mediaHydrate(box);
 
     box.querySelectorAll('[data-goto]').forEach(b => {
       b.addEventListener('click', () => setView(b.dataset.goto));
     });
   }
 
+  /* ============================================================
+     Kid-friendly look for student accounts
+     ============================================================ */
+  const KID_ICONS = {
+    dashboard: '\u{1F3E0}', students: '\u{1F466}', approvals: '\u{1F4DD}', fees: '\u{1F4B0}',
+    grades: '\u2B50', attendance: '\u2705', schedule: '\u23F0', tasks: '\u{1F4DA}',
+    news: '\u{1F4E3}', messages: '\u{1F4AC}', contact: '\u{1F4EE}', profile: '\u{1F64B}'
+  };
+
+  function kidMode() {
+    if (role !== 'student') return;
+    document.body.classList.add('kid-mode');
+    document.querySelectorAll('#sideNav button').forEach(b => {
+      const ic = b.querySelector('.s-icon');
+      if (ic && KID_ICONS[b.dataset.view]) ic.textContent = KID_ICONS[b.dataset.view];
+    });
+  }
+
+  function navLabels() {
+    if (isPrincipal) $('navContactLabel').textContent = 'School Concerns';
+  }
+
+  function relTime(iso) {
+    const d = new Date(iso);
+    const diff = (Date.now() - d.getTime()) / 1000;
+    if (diff < 60) return 'now';
+    if (diff < 3600) return Math.floor(diff / 60) + 'm';
+    if (diff < 86400) return Math.floor(diff / 3600) + 'h';
+    return d.toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
+  }
+  function newId(prefix) {
+    return prefix + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  }
+
+  /* ============================================================
+     Contact School - student concerns, read only by the principal/admin
+     ============================================================ */
+  function loadConcerns() { return NBANA.store.get(K.concerns, []) || []; }
+  function saveConcerns(list) { NBANA.store.set(K.concerns, list); }
+
+  function concernCardHtml(c) {
+    const open = c.status !== 'resolved';
+    const replies = (c.replies || []).map(r =>
+      '<div class="cn-reply"><strong>' + esc(r.byName) + '</strong>' +
+      '<p>' + esc(r.text).replace(/\n/g, '<br>') + '</p>' +
+      '<span class="cn-at">' + fmtStamp(r.at) + '</span></div>').join('');
+    const fresh = (c.replies || []).some(re => !c.studentReadAt || new Date(re.at) > new Date(c.studentReadAt));
+    const replyForm = isPrincipal
+      ? '<form class="cn-reply-form" data-creply="' + esc(c.id) + '">' +
+          '<input class="input" placeholder="Reply to ' + esc(String(c.studentName || '').split(' ')[0]) + '..." aria-label="Reply to student">' +
+          '<button type="submit" class="btn-sm solid">Reply</button>' +
+        '</form>'
+      : '';
+    const statusBtn = isPrincipal
+      ? '<span class="fp-actions"><button type="button" class="btn-sm" data-cstatus="' + esc(c.id) + '">' +
+        (open ? 'Mark resolved' : 'Reopen') + '</button></span>'
+      : '';
+    return '<article class="feed-post concern' + (open ? '' : ' resolved') + '">' +
+      '<div class="fp-head">' +
+        avatarSpan('fp-avatar', isPrincipal ? c.studentName : c.category, isPrincipal ? photoOf(c.studentId) : '') +
+        '<div class="fp-who"><strong>' + esc(isPrincipal ? (c.studentName || 'Student') : c.subject) + '</strong>' +
+          '<span class="fp-meta">' +
+            (isPrincipal ? '<span class="pill pill-navy">' + esc(c.grade || 'Student') + '</span> ' : '') +
+            '<span class="pill pill-amber">' + esc(c.category) + '</span> ' +
+            '<span class="pill ' + (open ? 'pill-red' : 'pill-green') + '">' + (open ? 'Open' : 'Resolved') + '</span> ' +
+            (fresh && !isPrincipal ? '<span class="pill pill-teal">New reply</span> ' : '') +
+            '\u00b7 ' + fmtStamp(c.at) + '</span></div>' +
+        statusBtn +
+      '</div>' +
+      (isPrincipal ? '<h4 class="fp-title">' + esc(c.subject) + '</h4>' : '') +
+      '<p class="fp-body">' + esc(c.body).replace(/\n/g, '<br>') + '</p>' +
+      (replies ? '<div class="cn-replies">' + replies + '</div>' : '') +
+      replyForm +
+    '</article>';
+  }
+
+  function renderConcerns() {
+    if (ALLOWED[role].indexOf('contact') === -1) return;
+    if (isPrincipal) {
+      $('concernFormPanel').hidden = true;
+      $('concernListTitle').textContent = 'Concerns from students';
+      const list = loadConcerns().slice().sort((a, b) => new Date(b.at) - new Date(a.at));
+      const open = list.filter(c => c.status !== 'resolved').length;
+      $('concernListSub').textContent = list.length + ' received \u00b7 ' + open + ' still open \u00b7 teachers cannot see these';
+      $('concernList').innerHTML = list.length
+        ? list.map(c => concernCardHtml(c)).join('')
+        : '<div class="empty-state"><span class="es-icon">&#9993;</span>No student concerns yet.</div>';
+    } else {
+      const mine = loadConcerns().filter(c => c.studentId === user.id)
+        .sort((a, b) => new Date(b.at) - new Date(a.at));
+      $('concernListTitle').textContent = 'My concerns';
+      $('concernListSub').textContent = mine.length + ' sent \u00b7 answers from the school office appear here';
+      $('concernList').innerHTML = mine.length
+        ? mine.map(c => concernCardHtml(c)).join('')
+        : '<div class="empty-state"><span class="es-icon">&#9993;</span>You have not sent a concern yet.</div>';
+    }
+
+    document.querySelectorAll('[data-creply]').forEach(f => f.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const input = f.querySelector('input');
+      const text = input.value.trim();
+      if (!text) return;
+      const list = loadConcerns();
+      const c = list.find(x => x.id === f.dataset.creply);
+      if (!c) return;
+      c.replies = c.replies || [];
+      c.replies.push({ by: 'admin', byName: fullName, text: text, at: nowStamp() });
+      c.status = 'open';
+      saveConcerns(list);
+      renderConcerns();
+      NBANA.toast('Reply sent to ' + (c.studentName || 'the student') + '.', 'success');
+    }));
+
+    document.querySelectorAll('[data-cstatus]').forEach(b => b.addEventListener('click', () => {
+      const list = loadConcerns();
+      const c = list.find(x => x.id === b.dataset.cstatus);
+      if (!c) return;
+      c.status = c.status === 'resolved' ? 'open' : 'resolved';
+      c.resolvedBy = fullName;
+      c.resolvedAt = nowStamp();
+      saveConcerns(list);
+      renderConcerns();
+      NBANA.toast(c.status === 'resolved' ? 'Concern marked as resolved.' : 'Concern reopened.', 'success');
+    }));
+
+    refreshNotifs();
+  }
+
+  /* The student's "New reply" flag clears once they open this section */
+  function markConcernsSeen() {
+    if (isPrincipal) {
+      const list = loadConcerns();
+      let dirty = false;
+      list.forEach(c => { if (!c.seenByAdmin) { c.seenByAdmin = true; dirty = true; } });
+      if (dirty) { saveConcerns(list); refreshNotifs(); }
+      return;
+    }
+    const list = loadConcerns();
+    let dirty = false;
+    list.forEach(c => { if (c.studentId === user.id) { c.studentReadAt = nowStamp(); dirty = true; } });
+    if (dirty) { saveConcerns(list); renderConcerns(); refreshNotifs(); }
+  }
+
+  function concernsInit() {
+    if (ALLOWED[role].indexOf('contact') === -1) return;
+    const form = $('concernForm');
+    if (form) form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const subject = $('cnSubject').value.trim();
+      const body = $('cnBody').value.trim();
+      const sOk = subject !== '', bOk = body !== '';
+      $('cnSubject').classList.toggle('invalid', !sOk);
+      $('cnSubject').parentElement.querySelector('.error').classList.toggle('show', !sOk);
+      $('cnBody').classList.toggle('invalid', !bOk);
+      $('cnBody').parentElement.querySelector('.error').classList.toggle('show', !bOk);
+      if (!sOk || !bOk) { NBANA.toast('Please add a subject and your concern.', 'error'); return; }
+      const list = loadConcerns();
+      list.push({
+        id: newId('c'),
+        studentId: user.id, studentName: fullName,
+        grade: gradeLevel + (section && section !== 'TBD' ? ' \u00b7 ' + section : ''),
+        category: $('cnCategory').value,
+        subject: subject, body: body,
+        at: nowStamp(), status: 'open', replies: [],
+        seenByAdmin: false, studentReadAt: nowStamp()
+      });
+      saveConcerns(list);
+      form.reset();
+      renderConcerns();
+      NBANA.toast('Your concern was sent to the school office.', 'success');
+    });
+    renderConcerns();
+    renderNotices();
+  }
+
+  /* ---------------- Notes from the school office (e.g. photo removals) ---------------- */
+  function loadNotices() { return NBANA.store.get(K.notices, []) || []; }
+  function saveNotices(list) { NBANA.store.set(K.notices, list); }
+
+  function addNotice(studentId, title, body) {
+    const list = loadNotices();
+    list.unshift({
+      id: newId('n'), studentId: studentId, byName: fullName,
+      title: title, body: body, at: nowStamp(), read: false
+    });
+    saveNotices(list);
+  }
+
+  function noticeCardHtml(n) {
+    return '<article class="feed-post notice">' +
+      '<div class="fp-head">' +
+        '<span class="fp-avatar">&#9993;</span>' +
+        '<div class="fp-who"><strong>' + esc(n.title) + '</strong>' +
+          '<span class="fp-meta">' +
+            '<span class="pill pill-navy">School office</span> ' +
+            (n.read ? '' : '<span class="pill pill-red">New</span> ') +
+            '\u00b7 ' + fmtStamp(n.at) + '</span></div>' +
+      '</div>' +
+      '<p class="fp-body">' + esc(n.body).replace(/\n/g, '<br>') + '</p>' +
+      '<p class="hint" style="margin:8px 0 0">Sent by ' + esc(n.byName) + ' \u00b7 you may upload a new picture from My Profile.</p>' +
+    '</article>';
+  }
+
+  function renderNotices() {
+    const panel = $('noticesPanel');
+    if (!panel) return;
+    const all = loadNotices();
+    const list = isPrincipal ? all : all.filter(n => n.studentId === user.id);
+    panel.hidden = !list.length;
+    if (!list.length) return;
+    const sub = panel.querySelector('.sub');
+    if (sub) sub.textContent = isPrincipal
+      ? 'Notes you sent to students about their profiles'
+      : 'Notes the principal sent about your account';
+    $('noticeList').innerHTML = list.map(n => noticeCardHtml(n)).join('');
+  }
+
+  function unreadNoticeCount() {
+    if (role !== 'student') return 0;
+    return loadNotices().filter(n => n.studentId === user.id && !n.read).length;
+  }
+
+  function markNoticesRead() {
+    if (role !== 'student') return;
+    const list = loadNotices();
+    let dirty = false;
+    list.forEach(n => { if (n.studentId === user.id && !n.read) { n.read = true; dirty = true; } });
+    if (dirty) { saveNotices(list); renderNotices(); refreshNotifs(); }
+  }
+
+  /* ============================================================
+     Messages - student <-> teacher chat, monitored by the principal
+     ============================================================ */
+  let activeThreadKey = null;
+  let adminChatMode = 'threads';   /* principal view: 'threads' (monitoring) or 'concerns' */
+  let activeConcernId = null;
+
+  function loadThreads() { return NBANA.store.get(K.threads, {}) || {}; }
+  function saveThreads(t) { NBANA.store.set(K.threads, t); }
+  function tKey(sid, tid) { return sid + '|' + tid; }
+  function participantKey() { return isPrincipal ? 'admin' : (isTeacher ? 'teacher' : 'student'); }
+
+  function teacherAccountFor(grade) {
+    return NBANA.getAccounts().find(a => a.role === 'teacher' && a.assignedGrade === grade) || null;
+  }
+  function myTeacherAccount() {
+    if (!user.student) return null;
+    return teacherAccountFor(user.student.gradeLevel);
+  }
+
+  function lastAtOf(t) {
+    const m = t && t.msgs && t.msgs[t.msgs.length - 1];
+    return m ? new Date(m.at).getTime() : 0;
+  }
+  function threadOf(key) { return loadThreads()[key] || null; }
+
+  function unreadIn(t) {
+    const k = participantKey();
+    const since = t.read && t.read[k] ? new Date(t.read[k]).getTime() : 0;
+    return (t.msgs || []).filter(m => m.from !== k && new Date(m.at).getTime() > since).length;
+  }
+
+  /* Every conversation the signed-in user may open */
+  function myContacts() {
+    const all = loadThreads();
+    if (isTeacher) {
+      return studentsInScope().map(s => {
+        const st = s.student || {};
+        return {
+          threadKey: tKey(s.id, user.id), studentId: s.id, teacherId: user.id,
+          title: nameOf(s), sub: (st.gradeLevel || '') + (st.section ? ' \u00b7 ' + st.section : ''),
+          studentName: nameOf(s), teacherName: fullName,
+          studentPhoto: s.photo || '', teacherPhoto: user.photo || '', photo: s.photo || ''
+        };
+      }).sort((a, b) => lastAtOf(all[b.threadKey]) - lastAtOf(all[a.threadKey]));
+    }
+    if (isPrincipal) {
+      const map = {};
+      activeStudents().forEach(s => {
+        const t = s.student && teacherAccountFor(s.student.gradeLevel);
+        if (!t) return;
+        map[tKey(s.id, t.id)] = {
+          threadKey: tKey(s.id, t.id), studentId: s.id, teacherId: t.id,
+          title: nameOf(s) + ' \u2192 ' + nameOf(t),
+          sub: (s.student.gradeLevel || '') + ' \u00b7 adviser ' + nameOf(t),
+          studentName: nameOf(s), teacherName: nameOf(t),
+          studentPhoto: s.photo || '', teacherPhoto: t.photo || '', photo: s.photo || ''
+        };
+      });
+      Object.keys(all).forEach(k => {
+        const t = all[k];
+        if (map[k] || !(t.msgs || []).length) return;
+        const s = NBANA.findAccount(t.studentId), tc = NBANA.findAccount(t.teacherId);
+        map[k] = {
+          threadKey: k, studentId: t.studentId, teacherId: t.teacherId,
+          title: (s ? nameOf(s) : 'Student') + ' \u2192 ' + (tc ? nameOf(tc) : 'Teacher'),
+          sub: 'Conversation',
+          studentName: s ? nameOf(s) : 'Student', teacherName: tc ? nameOf(tc) : 'Teacher',
+          studentPhoto: (s && s.photo) || '', teacherPhoto: (tc && tc.photo) || '', photo: (s && s.photo) || ''
+        };
+      });
+      return Object.keys(map).map(k => map[k]).sort((a, b) => lastAtOf(all[b.threadKey]) - lastAtOf(all[a.threadKey]));
+    }
+    const t = myTeacherAccount();
+    return t ? [{
+      threadKey: tKey(user.id, t.id), studentId: user.id, teacherId: t.id,
+      title: nameOf(t), sub: t.assignedGrade ? 'Adviser \u00b7 ' + t.assignedGrade : 'Your teacher',
+      studentName: fullName, teacherName: nameOf(t),
+      studentPhoto: user.photo || '', teacherPhoto: t.photo || '', photo: t.photo || ''
+    }] : [];
+  }
+
+  /* Principal: chat-style reader for student concerns (same panel, other switch position) */
+  function renderConcernChat() {
+    const list = loadConcerns().slice().sort((a, b) => new Date(b.at) - new Date(a.at));
+    if (!list.some(c => c.id === activeConcernId)) activeConcernId = list.length ? list[0].id : null;
+    const cur = list.find(c => c.id === activeConcernId) || null;
+
+    if (cur && !cur.seenByAdmin) {
+      cur.seenByAdmin = true;
+      const all = loadConcerns();
+      const i = all.findIndex(x => x.id === cur.id);
+      if (i > -1) { all[i] = cur; saveConcerns(all); }
+      refreshNotifs();
+    }
+
+    $('chatSideTitle').textContent = 'Student concerns';
+    $('chatSideSub').textContent = 'Switch back for teacher \u2194 student messages';
+
+    $('threadList').innerHTML = list.length ? list.map(c => {
+      const open = c.status !== 'resolved';
+      return '<button type="button" class="thread' + (c.id === activeConcernId ? ' active' : '') +
+        '" data-concern="' + esc(c.id) + '">' +
+        avatarSpan('th-avatar', c.studentName, photoOf(c.studentId)) +
+        '<span class="th-body"><span class="th-name">' + esc(c.studentName) + '</span>' +
+        '<span class="th-last">' + esc(c.subject) + '</span></span>' +
+        '<span class="th-meta">' + esc(relTime(c.at)) +
+        '<span class="pill ' + (open ? 'pill-red' : 'pill-green') + '">' + (open ? 'Open' : 'Done') + '</span></span>' +
+      '</button>';
+    }).join('') : '<div class="empty-state"><span class="es-icon">&#9993;</span>No student concerns yet.</div>';
+
+    if (!cur) {
+      $('chatHead').innerHTML = '';
+      $('chatBody').innerHTML = '<div class="chat-blank"><span>&#9993;</span><p>No student concerns to show yet.</p></div>';
+      $('chatForm').hidden = true;
+      refreshNotifs();
+      return;
+    }
+
+    $('chatHead').innerHTML =
+      avatarSpan('th-avatar big', cur.studentName, photoOf(cur.studentId)) +
+      '<div class="ch-who"><strong>' + esc(cur.subject) + '</strong>' +
+      '<span class="ch-sub">' + esc(cur.studentName) + ' \u00b7 ' + esc(cur.grade || '') + ' \u00b7 ' + esc(cur.category) + '</span></div>' +
+      '<span class="pill ' + (cur.status === 'resolved' ? 'pill-green' : 'pill-red') + '">' +
+      (cur.status === 'resolved' ? 'Resolved' : 'Open') + '</span>';
+
+    const msgs = [{ from: 'student', text: cur.body, at: cur.at }]
+      .concat((cur.replies || []).map(r => ({ from: 'admin', text: r.text, at: r.at })));
+
+    $('chatBody').innerHTML = msgs.map(m => {
+      const mine = m.from === 'admin';
+      return '<div class="msg-row ' + (mine ? 'me' : 'them') + '">' +
+        (mine ? '' : avatarSpan('msg-avatar', cur.studentName, photoOf(cur.studentId))) +
+        '<div class="msg-bubble">' + esc(m.text).replace(/\n/g, '<br>') +
+        '<span class="msg-time">' + fmtStamp(m.at) + '</span></div></div>';
+    }).join('');
+
+    $('chatForm').hidden = false;
+    $('chatInput').placeholder = 'Reply to ' + (cur.studentName || 'the student') + '...';
+    $('chatBody').scrollTop = $('chatBody').scrollHeight;
+
+    document.querySelectorAll('[data-concern]').forEach(b => b.addEventListener('click', () => {
+      activeConcernId = b.dataset.concern;
+      renderConcernChat();
+    }));
+    refreshNotifs();
+  }
+
+  function replyToActiveConcern(text) {
+    const list = loadConcerns();
+    const c = list.find(x => x.id === activeConcernId);
+    if (!c) return;
+    c.replies = c.replies || [];
+    c.replies.push({ by: 'admin', byName: fullName, text: text, at: nowStamp() });
+    c.status = 'open';
+    saveConcerns(list);
+    renderConcernChat();
+    renderConcerns();
+    NBANA.toast('Reply sent to ' + (c.studentName || 'the student') + '.', 'success');
+  }
+
+  function renderMessages() {
+    if (ALLOWED[role].indexOf('messages') === -1) return;
+    if (isPrincipal && adminChatMode === 'concerns') { renderConcernChat(); return; }
+    const contacts = myContacts();
+    if (!contacts.some(c => c.threadKey === activeThreadKey)) {
+      activeThreadKey = contacts.length ? contacts[0].threadKey : null;
+    }
+
+    const all = loadThreads();
+    const cur = activeThreadKey ? all[activeThreadKey] : null;
+    if (cur) {                              /* opening a conversation clears its unread count */
+      cur.read = cur.read || {};
+      cur.read[participantKey()] = nowStamp();
+      saveThreads(all);
+    }
+
+    $('chatSideTitle').textContent = isPrincipal ? 'All conversations' : 'Conversations';
+    $('chatSideSub').textContent = isPrincipal
+      ? 'Which student is messaging which teacher'
+      : (isTeacher ? 'Students in ' + teacherGrade : 'Your class teacher');
+
+    $('threadList').innerHTML = contacts.length ? contacts.map(c => {
+      const t = all[c.threadKey];
+      const msgs = (t && t.msgs) || [];
+      const last = msgs[msgs.length - 1];
+      const unread = t ? unreadIn(t) : 0;
+      return '<button type="button" class="thread' + (c.threadKey === activeThreadKey ? ' active' : '') +
+        '" data-thread="' + esc(c.threadKey) + '">' +
+        avatarSpan('th-avatar', c.title, c.photo) +
+        '<span class="th-body"><span class="th-name">' + esc(c.title) + '</span>' +
+        '<span class="th-last">' + (last ? esc(last.text.slice(0, 46)) : 'No messages yet') + '</span></span>' +
+        '<span class="th-meta">' + (last ? esc(relTime(last.at)) : '') +
+        (unread ? '<span class="th-dot">' + unread + '</span>' : '') + '</span>' +
+      '</button>';
+    }).join('') : '<div class="empty-state"><span class="es-icon">&#128172;</span>No conversations available.</div>';
+
+    const c = contacts.find(x => x.threadKey === activeThreadKey);
+    if (!c) {
+      $('chatHead').innerHTML = '';
+      $('chatBody').innerHTML = '<div class="chat-blank"><span>&#128172;</span><p>' +
+        (isPrincipal ? 'Pick a conversation on the left to read it.' : 'No conversation to show yet.') + '</p></div>';
+      $('chatForm').hidden = true;
+      refreshNotifs();
+      return;
+    }
+
+    $('chatHead').innerHTML =
+      avatarSpan('th-avatar big', c.title, c.photo) +
+      '<div class="ch-who"><strong>' + esc(c.title) + '</strong><span class="ch-sub">' + esc(c.sub) + '</span></div>' +
+      (isPrincipal ? '<span class="pill pill-navy">Monitoring \u00b7 read only</span>' : '');
+
+    const msgs = (cur && cur.msgs) || [];
+    $('chatBody').innerHTML = msgs.length ? msgs.map(m => {
+      const mine = !isPrincipal && m.from === participantKey();
+      const who = m.from === 'student' ? c.studentName : c.teacherName;
+      return '<div class="msg-row ' + (mine ? 'me' : 'them') + '">' +
+        (mine ? '' : avatarSpan('msg-avatar', who, m.from === 'student' ? c.studentPhoto : c.teacherPhoto)) +
+        '<div class="msg-bubble">' +
+          (isPrincipal ? '<span class="msg-who">' + esc(who) + '</span>' : '') +
+          esc(m.text).replace(/\n/g, '<br>') +
+          '<span class="msg-time">' + fmtStamp(m.at) + '</span>' +
+        '</div></div>';
+    }).join('') : '<div class="chat-blank"><span>&#128075;</span><p>' + (isPrincipal
+      ? 'No messages in this conversation yet.'
+      : 'Say hello to ' + esc(c.title) + '!') + '</p></div>';
+
+    $('chatForm').hidden = isPrincipal;
+    $('chatBody').scrollTop = $('chatBody').scrollHeight;
+
+    document.querySelectorAll('[data-thread]').forEach(b => b.addEventListener('click', () => {
+      activeThreadKey = b.dataset.thread;
+      renderMessages();
+    }));
+    refreshNotifs();
+  }
+
+  function sendChat(text) {
+    const c = myContacts().find(x => x.threadKey === activeThreadKey);
+    if (!c) return;
+    const all = loadThreads();
+    let t = all[activeThreadKey];
+    if (!t) {
+      t = { id: activeThreadKey, studentId: c.studentId, teacherId: c.teacherId, msgs: [], read: {} };
+      all[activeThreadKey] = t;
+    }
+    t.msgs = t.msgs || [];
+    t.msgs.push({ id: newId('m'), from: isTeacher ? 'teacher' : 'student', text: text, at: nowStamp() });
+    t.read = t.read || {};
+    t.read[participantKey()] = nowStamp();
+    saveThreads(all);
+    renderMessages();
+  }
+
+  function messagesInit() {
+    if (ALLOWED[role].indexOf('messages') === -1) return;
+    const form = $('chatForm');
+    if (form) form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const text = $('chatInput').value.trim();
+      if (!text) return;
+      if (isPrincipal && adminChatMode === 'concerns') replyToActiveConcern(text);
+      else sendChat(text);
+      $('chatInput').value = '';
+      $('chatInput').focus();
+    });
+
+    /* The principal can switch the Messages view between monitoring and concerns */
+    if (isPrincipal && $('monitorSwitch')) {
+      $('monitorSwitch').hidden = false;
+      $('monitorSwitch').querySelectorAll('.ms-btn').forEach(b => b.addEventListener('click', () => {
+        adminChatMode = b.dataset.mode;
+        $('monitorSwitch').querySelectorAll('.ms-btn').forEach(x => x.classList.toggle('active', x === b));
+        $('chatInput').placeholder = 'Aa';
+        renderMessages();
+      }));
+    }
+  }
+
+  /* Another tab wrote to the shared school data - keep this tab in step */
+  window.addEventListener('storage', (e) => {
+    if (!e.key || e.key.indexOf('nbana.') !== 0) return;
+    renderFeed();
+    renderApprovals();
+    renderConcerns();
+    const active = document.querySelector('.view.active');
+    if (active && active.id === 'view-messages') renderMessages();
+    refreshNotifs();
+  });
+
+  /* ============================================================
+     Notifications (approvals, concerns, unread messages)
+     ============================================================ */
+  function openConcernCount() {
+    if (isPrincipal) return loadConcerns().filter(c => c.status !== 'resolved' && !c.seenByAdmin).length;
+    if (role !== 'student') return 0;
+    return loadConcerns().filter(c => c.studentId === user.id &&
+      (c.replies || []).some(re => !c.studentReadAt || new Date(re.at) > new Date(c.studentReadAt))).length;
+  }
+
+  function myStoredThreads() {
+    const all = loadThreads();
+    return Object.keys(all).map(k => all[k]).filter(t => {
+      if (isPrincipal) return true;
+      if (isTeacher) return t.teacherId === user.id;
+      return t.studentId === user.id;
+    });
+  }
+  function unreadMsgCount() { return myStoredThreads().reduce((s, t) => s + unreadIn(t), 0); }
+
+  function setBadge(id, n) {
+    const el = $(id);
+    if (!el) return;
+    el.textContent = n;
+    el.hidden = !n;
+  }
+
+  function refreshNotifs() {
+    const appr = isPrincipal ? pendingPosts().length : 0;
+    const cn = openConcernCount();
+    const notes = unreadNoticeCount();
+    const msgs = unreadMsgCount();
+    const total = appr + cn + notes + msgs;
+
+    const bell = $('notifBtn');
+    if (bell) {
+      const parts = [];
+      if (appr) parts.push(appr + ' teacher post' + (appr === 1 ? '' : 's') + ' waiting for approval');
+      if (cn) parts.push(isPrincipal
+        ? cn + ' student concern' + (cn === 1 ? '' : 's') + ' waiting for your reply'
+        : cn + ' new repl' + (cn === 1 ? 'y' : 'ies') + ' from the school office');
+      if (notes) parts.push(notes + ' note' + (notes === 1 ? '' : 's') + ' from the school office');
+      if (msgs) parts.push(msgs + ' unread message' + (msgs === 1 ? '' : 's'));
+      bell.title = parts.length ? parts.join(' \u00b7 ') : 'No new notifications';
+    }
+    const nb = $('notifBadge');
+    if (nb) { nb.textContent = total > 99 ? '99+' : total; nb.hidden = !total; }
+    setBadge('navApprCount', appr);
+    setBadge('navConcernCount', cn + notes);
+    setBadge('navMsgCount', msgs);
+    if (isPrincipal) renderPwReqs();
+  }
+
+  function notifInit() {
+    if ($('notifBtn')) {
+      $('notifBtn').hidden = false;
+      $('notifBtn').addEventListener('click', () => {
+        if (isPrincipal && pendingPosts().length) return setView('approvals');
+        if (unreadMsgCount()) return setView('messages');
+        if (openConcernCount()) return setView(ALLOWED[role].indexOf('contact') > -1 ? 'contact' : 'messages');
+        setView(isPrincipal ? 'approvals' : 'messages');
+      });
+    }
+    refreshNotifs();
+  }
+
+  /* ---------------- App mode: bottom navigation + right drawer ---------------- */
+  const VIEW_ICON = {
+    dashboard: '&#8962;', students: '&#9679;', approvals: '&#9878;', fees: '&#8369;',
+    grades: '&#9733;', attendance: '&#10003;', schedule: '&#9200;', tasks: '&#9776;',
+    news: '&#128240;', faculty: '&#127979;', messages: '&#128172;', contact: '&#128238;',
+    profile: '&#9823;', pwreq: '&#128273;'
+  };
+  function appModeOn() {
+    return window.matchMedia('(display-mode: standalone)').matches ||
+      window.navigator.standalone === true ||
+      window.innerWidth <= 860;
+  }
+  function applyAppMode() {
+    document.body.classList.toggle('app-mode', appModeOn());
+  }
+  function appModeInit() {
+    applyAppMode();
+    window.addEventListener('resize', applyAppMode);
+    if (window.matchMedia('(display-mode: standalone)').addEventListener) {
+      window.matchMedia('(display-mode: standalone)').addEventListener('change', applyAppMode);
+    }
+  }
+  function openDrawer() {
+    const wrap = $('drawerWrap');
+    if (!wrap) return;
+    wrap.hidden = false;
+    requestAnimationFrame(() => wrap.classList.add('open'));
+  }
+  function closeDrawer() {
+    const wrap = $('drawerWrap');
+    if (!wrap || wrap.hidden) return;
+    wrap.classList.remove('open');
+    setTimeout(() => { wrap.hidden = true; }, 260);
+  }
+  function drawerInit() {
+    if (!$('drawer')) return;
+    const av = $('dwAvatar');
+    av.innerHTML = user.photo ? '<img src="' + user.photo + '" alt="">' : esc(initialsOf(fullName));
+    $('dwName').textContent = fullName;
+    $('dwRole').textContent = NBANA.roleLabel(role) +
+      (isTeacher ? ' \u00b7 ' + teacherGrade
+        : (user.student && user.student.gradeLevel ? ' \u00b7 ' + user.student.gradeLevel : ''));
+    const skip = { news: 1, dashboard: 1, messages: 1, profile: 1 };
+    $('dwLinks').innerHTML = ALLOWED[role].filter((v) => !skip[v]).map((v) =>
+      '<button type="button" data-dw="' + v + '"><span class="s-icon">' + (VIEW_ICON[v] || '&#8226;') + '</span>' + esc(viewMeta(v)[0]) + '</button>'
+    ).join('');
+    $('dwLinks').querySelectorAll('[data-dw]').forEach((b) =>
+      b.addEventListener('click', () => { closeDrawer(); setView(b.dataset.dw); }));
+    $('dwEditBtn').addEventListener('click', () => { closeDrawer(); setView('profile'); });
+    $('dwLogout').addEventListener('click', () => NBANA.logout());
+    const inst = $('dwInstall');
+    if (inst) {
+      if (window.__nbanaInstall) inst.hidden = false;
+      inst.addEventListener('click', () => {
+        if (!window.__nbanaInstall) return;
+        window.__nbanaInstall.prompt();
+        window.__nbanaInstall = null;
+        inst.hidden = true;
+      });
+    }
+  }
+  function syncBottomNav(name) {
+    const nav = $('bottomNav');
+    if (!nav) return;
+    const map = { news: 'news', dashboard: 'dashboard', messages: 'messages', approvals: 'alerts', contact: 'alerts', pwreq: 'more' };
+    const on = map[name] || 'more';
+    nav.querySelectorAll('[data-bnav]').forEach((b) => b.classList.toggle('active', b.dataset.bnav === on));
+  }
+  function bottomNavInit() {
+    const nav = $('bottomNav');
+    if (!nav) return;
+    nav.querySelectorAll('[data-bnav]').forEach((b) => {
+      b.addEventListener('click', () => {
+        const t = b.dataset.bnav;
+        if (t === 'more') { openDrawer(); return; }
+        if (t === 'alerts') {
+          const nb = $('notifBtn');
+          if (nb && !nb.hidden) { nb.click(); return; }
+        }
+        setView(t === 'alerts' ? (isPrincipal ? 'approvals' : 'messages') : t);
+      });
+    });
+  }
+  if ($('drawerBack')) $('drawerBack').addEventListener('click', closeDrawer);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && $('drawerWrap') && !$('drawerWrap').hidden) closeDrawer();
+  });
+
   /* ---------------- Boot ---------------- */
+  migrateFeedPhotos();
   renderFeed();
   composerSetup();
+
+  kidMode();
+  navLabels();
+  renderBanner();
+  appModeInit();
+  drawerInit();
+  bottomNavInit();
+  messagesInit();
+  concernsInit();
+  profileInit();
+  renderFaculty();
 
   if (isAdmin) {
     renderAdminDash();
@@ -1607,16 +3186,18 @@
     attInit();
     schedInit();
     tasksInit();
-    profileInit();
     studentsInit();
+    promotionInit();
+    photoReviewInit();
+    renderApprovals();
   }
 
-  renderBanner();
   renderFees();
   renderGrades();
   renderAttendance();
   renderSchedule();
   renderTasks();
   renderProfile();
-  setView('dashboard');
+  notifInit();
+  setView('news');
 })();

@@ -66,6 +66,112 @@
     setTimeout(() => { window.location.href = 'portal.html'; }, 500);
   });
 
+  /* ---------------- Forgot password (school office assists) ----------------
+     The office sees the request in the portal, reads back or resets the
+     password, and marks it sent — the user then sees it here. */
+  const PWREQ_KEY = 'nbana.pwreq.v1';
+  function loadReqs() { return NBANA.store.get(PWREQ_KEY, []) || []; }
+  function saveReqs(list) { NBANA.store.set(PWREQ_KEY, list); }
+  function fpStatus(html) { $('fpStatus').innerHTML = html; }
+  function accountByEmail(email) {
+    return NBANA.getAccounts().find((a) => String(a.email).toLowerCase() === String(email).toLowerCase());
+  }
+  function escTxt(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+  $('forgotLink').addEventListener('click', () => {
+    const p = $('forgotPanel');
+    p.hidden = !p.hidden;
+    if (!p.hidden) $('fpEmail').focus();
+  });
+
+  $('fpRequest').addEventListener('click', () => {
+    const email = $('fpEmail').value.trim();
+    if (!EMAIL_RE.test(email)) { fpStatus('<span class="fp-err">Please type the email on your account.</span>'); return; }
+    const acc = accountByEmail(email);
+    if (!acc) { fpStatus('<span class="fp-err">No account uses that email. Check the spelling, or create a new account below.</span>'); return; }
+    const reqs = loadReqs();
+    let r = reqs.find((x) => String(x.email).toLowerCase() === email.toLowerCase());
+    if (r && r.status === 'sent') { showSent(r); return; }
+    if (!r) {
+      r = { id: 'pw_' + Date.now().toString(36), email: email, name: acc.fullName || acc.firstName, at: new Date().toISOString(), status: 'waiting' };
+      reqs.unshift(r);
+      saveReqs(reqs);
+    }
+    fpStatus('<div class="fp-ok">Request received by the school office. They will send your password in about <b>2&ndash;3 minutes</b> &mdash; wait a moment, then tap <b>Check status</b>.</div>');
+  });
+
+  $('fpCheck').addEventListener('click', () => {
+    const email = $('fpEmail').value.trim();
+    if (!EMAIL_RE.test(email)) { fpStatus('<span class="fp-err">Please type your email first.</span>'); return; }
+    const r = loadReqs().find((x) => String(x.email).toLowerCase() === email.toLowerCase());
+    if (!r) { fpStatus('<span class="fp-err">No request yet &mdash; tap <b>Request password</b> first.</span>'); return; }
+    if (r.status === 'sent') { showSent(r); return; }
+    fpStatus('<div class="fp-wait">Still waiting for the school office &mdash; they usually respond within 2&ndash;3 minutes.</div>');
+  });
+
+  function showSent(r) {
+    const acc = accountByEmail(r.email);
+    const pw = (acc && acc.pwCode) ? NBANA.decPw(acc.pwCode) : (r.tempPw || '');
+    fpStatus(
+      '<div class="fp-ok">The school office has sent the password for this account:</div>' +
+      (pw ? '<div class="fp-pw">' + escTxt(pw) + '</div><div class="hint">Go up and sign in with it. Change it in <b>My Profile</b> after signing in.</div>'
+          : '<div class="fp-err">The office could not read this account\u2019s old password. Please ask the office to set a temporary password for you.</div>')
+    );
+  }
+
+  /* ---------------- Account type toggle ---------------- */
+  let acctRole = 'student';   /* student (default) | teacher | admin */
+  const segBtns = Array.from(document.querySelectorAll('.seg-btn'));
+
+  function roleHint() {
+    if (acctRole === 'teacher') return 'Teacher accounts need the staff secret code and are assigned one grade level.';
+    if (acctRole === 'admin') return 'Admin accounts need the staff secret code and get full administrative access.';
+    return 'Student is the default type and needs no secret code.';
+  }
+
+  /* Adapt the wizard to the chosen account type */
+  function applyRoleToWizard() {
+    segBtns.forEach(b => {
+      const on = b.dataset.role === acctRole;
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-checked', on ? 'true' : 'false');
+    });
+    $('acctTypeHint').textContent = roleHint();
+    $('staffCodeField').hidden = acctRole === 'student';
+
+    const isStudent = acctRole === 'student';
+    const isTeacher = acctRole === 'teacher';
+
+    /* The survey doubles as the staff registration form */
+    $('signupTitle').textContent = isStudent ? 'Student information survey'
+      : (isTeacher ? 'Teacher account details' : 'Administrator account details');
+    $('personalHead').textContent = isStudent ? 'About the student'
+      : (isTeacher ? 'About the teacher' : 'About the administrator');
+    $('personalHint').textContent = isStudent
+      ? 'Enter the name and personal details exactly as they appear on official documents.'
+      : 'Enter your full name and personal details exactly as they appear on your school records.';
+
+    $('schoolTag').textContent = 'Part 3 \u00b7 ' + (isTeacher ? 'Assignment' : 'Schooling');
+    $('schoolHead').textContent = isTeacher ? 'Grade level & guardian details' : 'School & guardian details';
+    $('schoolHint').textContent = isTeacher
+      ? 'Choose the grade level you teach and give us an emergency contact.'
+      : (isStudent
+        ? 'Tell us the grade level the student will enroll in and who the parent or guardian is.'
+        : 'Give us an emergency contact for the administrator.');
+
+    /* Grade level: required for students and teachers, not for admins */
+    $('gradeRow').hidden = acctRole === 'admin';
+    $('gradeLabel').innerHTML = (isTeacher ? 'Assigned grade level' : 'Grade level') + ' <span class="req">*</span>';
+    /* Section and LRN only make sense for students */
+    $('sectionField').hidden = !isStudent;
+    $('lrnField').hidden = !isStudent;
+  }
+
+  segBtns.forEach(b => b.addEventListener('click', () => {
+    acctRole = b.dataset.role;
+    applyRoleToWizard();
+  }));
+
   /* ---------------- Wizard ---------------- */
   const steps = Array.from(document.querySelectorAll('.wizard-step'));
   const TOTAL = steps.length;
@@ -96,7 +202,9 @@
       ok = required('f_first') && ok;
       ok = required('f_last') && ok;
       const birth = $('f_birth');
-      const validBirth = birth.value !== '' && new Date(birth.value) <= new Date() && new Date(birth.value).getFullYear() > 1990;
+      /* Students must be school-age; teachers and admins can be any adult */
+      const minYear = acctRole === 'student' ? 1990 : 1900;
+      const validBirth = birth.value !== '' && new Date(birth.value) <= new Date() && new Date(birth.value).getFullYear() > minYear;
       markError(birth, !validBirth); ok = validBirth && ok;
       ok = required('f_gender') && ok;
     } else if (n === 2) {
@@ -107,7 +215,7 @@
       const phoneOk = digits($('f_phone').value) >= 7;
       markError($('f_phone'), !phoneOk); ok = phoneOk && ok;
     } else if (n === 3) {
-      ok = required('f_grade') && ok;
+      if (acctRole !== 'admin') ok = required('f_grade') && ok;
       ok = required('f_gname') && ok;
       ok = required('f_grel') && ok;
       const gOk = digits($('f_gphone').value) >= 7;
@@ -119,6 +227,14 @@
       markError($('f_pw'), !pwOk); ok = pwOk && ok;
       const matchOk = $('f_pw2').value === $('f_pw').value && $('f_pw2').value !== '';
       markError($('f_pw2'), !matchOk); ok = matchOk && ok;
+      /* Teacher / admin sign-ups must prove they hold the staff secret code */
+      if (acctRole !== 'student') {
+        const codeOk = NBANA.checkStaffCode($('f_code').value);
+        markError($('f_code'), !codeOk); ok = codeOk && ok;
+        if (!codeOk && $('f_code').value.trim() !== '') {
+          NBANA.toast('That staff secret code is not valid.', 'error');
+        }
+      }
       ok = showError('agreeErr', !$('f_agree').checked) && ok;
       if (ok && NBANA.findByLogin($('f_email').value)) {
         markError($('f_email'), true);
@@ -167,6 +283,7 @@
     const addr = [$('f_house').value, $('f_brgy').value, $('f_city').value, $('f_prov').value, $('f_zip').value]
       .filter(Boolean).join(', ');
     $('reviewList').innerHTML =
+      row('Account type', NBANA.roleLabel(acctRole)) +
       row('Full name', name) +
       row('Date of birth', $('f_birth').value) +
       row('Age', $('f_age').value ? $('f_age').value + ' years old' : '') +
@@ -175,11 +292,11 @@
       row('Nationality', $('f_nation').value) +
       row('Address', addr) +
       row('Contact number', $('f_phone').value) +
-      row('Grade level', $('f_grade').value) +
-      row('Section', $('f_section').value) +
-      row('School year', $('f_year').value) +
-      row('Semester', $('f_sem').value) +
-      row('LRN', $('f_lrn').value) +
+      (acctRole === 'admin' ? '' : row(acctRole === 'teacher' ? 'Assigned grade level' : 'Grade level', $('f_grade').value)) +
+      (acctRole === 'student' ? row('Section', $('f_section').value) : '') +
+      (acctRole === 'student' ? row('School year', $('f_year').value) : '') +
+      (acctRole === 'student' ? row('Semester', $('f_sem').value) : '') +
+      (acctRole === 'student' ? row('LRN', $('f_lrn').value) : '') +
       row('Guardian', $('f_gname').value) +
       row('Relationship', $('f_grel').value) +
       row('Guardian contact', $('f_gphone').value) +
@@ -219,20 +336,30 @@
         relationship: $('f_grel').value,
         phone: $('f_gphone').value.trim()
       },
-      student: {
+      role: acctRole
+    };
+
+    if (acctRole === 'student') {
+      profile.student = {
         lrn: $('f_lrn').value.trim(),
         gradeLevel: $('f_grade').value,
         section: $('f_section').value.trim() || 'TBD',
-        schoolYear: $('f_year').value.trim(),
+        schoolYear: $('f_year').value.trim() || NBANA.getSchoolYear(),
         semester: $('f_sem').value
-      }
-    };
+      };
+    } else if (acctRole === 'teacher') {
+      profile.assignedGrade = $('f_grade').value;
+    }
 
     const account = NBANA.createAccount(profile, $('f_pw').value);
     NBANA.setSession(account.id);
-    NBANA.toast('Survey complete! Your account has been created.', 'success');
+    NBANA.toast(NBANA.roleLabel(acctRole) + ' account created. Welcome to the portal!', 'success');
     setTimeout(() => { window.location.href = 'portal.html'; }, 800);
   });
 
+  /* Keep the student survey's school year in step with the school calendar */
+  $('f_year').value = NBANA.getSchoolYear();
+
+  applyRoleToWizard();
   renderStep();
 })();

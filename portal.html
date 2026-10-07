@@ -6,6 +6,11 @@
   <title>School Portal | NBANA SDA Elementary School</title>
   <link rel="icon" type="image/png" href="logo.png">
   <link rel="apple-touch-icon" href="logo.png">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0b1f3a">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -17,7 +22,7 @@
   <nav class="navbar">
     <a href="index.html" class="logo">
       <img src="logo.png" alt="NBANA Logo" class="logo-img">
-      <span class="school-name">NBANA SDA Elementary</span>
+      <span class="school-name">NBANA Portal</span>
     </a>
     <ul class="nav-links">
       <li><a href="index.html">Home</a></li>
@@ -25,7 +30,6 @@
       <li><a href="students.html">Students</a></li>
       <li><a href="index.html#announcements">Announcements</a></li>
     </ul>
-    <div class="nav-auth"></div>
   </nav>
 
   <div class="portal-shell" id="portalShell">
@@ -42,12 +46,17 @@
       <nav class="side-nav" id="sideNav">
         <button type="button" class="active" data-view="dashboard"><span class="s-icon">&#8962;</span>Dashboard</button>
         <button type="button" data-view="students" hidden><span class="s-icon">&#9679;</span>Students</button>
+        <button type="button" data-view="approvals" hidden><span class="s-icon">&#9878;</span>Approvals<span class="s-count" id="navApprCount" hidden>0</span></button>
         <button type="button" data-view="fees"><span class="s-icon">&#8369;</span>Tuition &amp; Fees</button>
         <button type="button" data-view="grades"><span class="s-icon">&#9733;</span>Grades</button>
         <button type="button" data-view="attendance"><span class="s-icon">&#10003;</span>Attendance</button>
         <button type="button" data-view="schedule"><span class="s-icon">&#9200;</span>Class Schedule</button>
         <button type="button" data-view="tasks"><span class="s-icon">&#9776;</span>Assignments</button>
-        <button type="button" data-view="news"><span class="s-icon">&#9993;</span>Announcements</button>
+        <button type="button" data-view="news"><span class="s-icon">&#128240;</span>Feed</button>
+        <button type="button" data-view="faculty"><span class="s-icon">&#127979;</span>Faculty &amp; Staff</button>
+        <button type="button" data-view="messages"><span class="s-icon">&#128172;</span><span id="navMsgLabel">Messages</span><span class="s-count" id="navMsgCount" hidden>0</span></button>
+        <button type="button" data-view="contact" hidden><span class="s-icon">&#128238;</span><span id="navContactLabel">Contact School</span><span class="s-count" id="navConcernCount" hidden>0</span></button>
+        <button type="button" data-view="pwreq" hidden><span class="s-icon">&#128273;</span>Password help<span class="s-count" id="navPwCount" hidden>0</span></button>
         <button type="button" data-view="profile"><span class="s-icon">&#9823;</span>My Profile</button>
       </nav>
 
@@ -68,23 +77,29 @@
           <span class="chip" id="chipYear">SY 2026-2027</span>
           <span class="chip chip-teal" id="chipDate">Today</span>
         </div>
+        <button type="button" id="notifBtn" class="notif-btn" hidden aria-label="Notifications" title="Notifications"><span class="notif-ico">&#128276;</span><span class="notif-badge" id="notifBadge" hidden>0</span></button>
       </header>
 
       <!-- ============ DASHBOARD ============ -->
       <section class="view active" id="view-dashboard">
         <div class="welcome-banner">
+          <span class="wb-emoji" id="wbEmoji">&#9728;</span>
           <span class="wb-kicker" id="wbKicker">Welcome</span>
           <h2 id="wbName">Student</h2>
           <p id="wbText">Here is your school day at a glance.</p>
+          <p class="wb-verse" id="wbVerse"></p>
+          <button type="button" class="wb-verse-btn" id="wbVerseBtn">&#8635; Another verse</button>
+        </div>
+
+        <div class="panel" id="dashFeedPanel">
+          <div class="panel-head">
+            <div><h3>Announcements &amp; school events</h3><span class="sub" id="dashFeedSub">Latest news from the school</span></div>
+            <button type="button" class="btn-sm" data-goto="news">See all</button>
+          </div>
+          <div class="panel-body flush feed" id="dashFeed"></div>
         </div>
 
         <div class="summary-grid">
-          <div class="summary-card">
-            <span class="sc-icon">&#8369;</span>
-            <span class="sc-label">Tuition balance</span>
-            <div class="sc-value" id="sumBalance">&mdash;</div>
-            <div class="sc-sub" id="sumBalanceSub">&mdash;</div>
-          </div>
           <div class="summary-card">
             <span class="sc-icon">&#10003;</span>
             <span class="sc-label">Attendance rate</span>
@@ -102,6 +117,12 @@
             <span class="sc-label">Open tasks</span>
             <div class="sc-value" id="sumTasks">&mdash;</div>
             <div class="sc-sub" id="sumTasksSub">&mdash;</div>
+          </div>
+          <div class="summary-card">
+            <span class="sc-icon">&#8369;</span>
+            <span class="sc-label">Tuition balance</span>
+            <div class="sc-value" id="sumBalance">&mdash;</div>
+            <div class="sc-sub" id="sumBalanceSub">&mdash;</div>
           </div>
         </div>
 
@@ -131,13 +152,6 @@
           </div>
         </div>
 
-        <div class="panel">
-          <div class="panel-head">
-            <div><h3>Latest announcements</h3><span class="sub">From the administration</span></div>
-            <button type="button" class="btn-sm" data-goto="news">See all</button>
-          </div>
-          <div class="panel-body flush" id="dashNews"></div>
-        </div>
       </section>
 
       <!-- ============ TUITION & FEES ============ -->
@@ -380,12 +394,13 @@
                 <span class="error">Please write a message.</span>
               </div>
               <div class="form-field">
-                <label for="postPhoto">Photo</label>
-                <input type="file" id="postPhoto" accept="image/*">
-                <div class="photo-preview" id="photoPreview" hidden>
-                  <img id="photoImg" alt="Post preview">
-                  <button type="button" class="btn-sm" id="photoRemove">Remove photo</button>
+                <label>Photos &amp; videos</label>
+                <div class="media-row">
+                  <button type="button" class="btn-sm" id="mediaAddBtn">&#128247; Add photos / video</button>
+                  <input type="file" id="postMedia" accept="image/*,video/*" multiple hidden>
+                  <span class="sub" id="mediaHint">Up to 6 photos, or photos plus one short video</span>
                 </div>
+                <div class="media-chips" id="mediaChips"></div>
               </div>
               <div class="composer-actions">
                 <span class="sub" id="composerHint"></span>
@@ -403,6 +418,112 @@
         </div>
       </section>
 
+      <!-- ============ APPROVALS (principal / admin) ============ -->
+      <section class="view" id="view-approvals">
+        <div class="panel">
+          <div class="panel-head">
+            <div><h3>Posts waiting for approval</h3><span class="sub" id="apprSub">Teacher posts stay hidden from students until you approve them</span></div>
+          </div>
+          <div class="panel-body flush feed" id="apprList"></div>
+        </div>
+      </section>
+
+      <!-- ============ MESSAGES (student <-> teacher, monitored by the admin) ============ -->
+      <section class="view" id="view-messages">
+        <div class="panel chat-panel">
+          <div class="chat-side">
+            <div class="chat-side-head">
+              <h3 id="chatSideTitle">Conversations</h3>
+              <span class="sub" id="chatSideSub"></span>
+              <div class="monitor-switch" id="monitorSwitch" hidden>
+                <button type="button" class="ms-btn active" data-mode="threads">Teacher &harr; Student</button>
+                <button type="button" class="ms-btn" data-mode="concerns">Concerns</button>
+              </div>
+            </div>
+            <div class="thread-list" id="threadList"></div>
+          </div>
+          <div class="chat-main">
+            <div class="chat-head" id="chatHead"></div>
+            <div class="chat-body" id="chatBody"></div>
+            <form class="chat-compose" id="chatForm" hidden>
+              <input class="input" id="chatInput" placeholder="Aa" autocomplete="off" aria-label="Message">
+              <button type="submit" class="chat-send" aria-label="Send message">&#10148;</button>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ CONTACT SCHOOL / CONCERNS ============ -->
+      <section class="view" id="view-contact">
+        <div class="panel" id="noticesPanel" hidden>
+          <div class="panel-head">
+            <div><h3>Messages from the school office</h3><span class="sub">Notes the principal sent about your account</span></div>
+          </div>
+          <div class="panel-body flush feed" id="noticeList"></div>
+        </div>
+        <div class="panel" id="concernFormPanel">
+          <div class="panel-head">
+            <div><h3 id="concernFormTitle">Send a concern to the school</h3><span class="sub" id="concernFormSub">Only the school office reads this &mdash; your teachers cannot see it.</span></div>
+          </div>
+          <div class="panel-body">
+            <form id="concernForm" class="pay-form" style="padding:0">
+              <div class="form-field">
+                <label for="cnCategory">Concern about <span class="req">*</span></label>
+                <select id="cnCategory">
+                  <option>Tuition &amp; Billing</option>
+                  <option>Grades &amp; Records</option>
+                  <option>Attendance</option>
+                  <option>Behavior &amp; Discipline</option>
+                  <option>Facilities &amp; Safety</option>
+                  <option>Enrollment &amp; Documents</option>
+                  <option>Other</option>
+                </select>
+              </div>
+              <div class="form-field">
+                <label for="cnSubject">Subject <span class="req">*</span></label>
+                <input class="input" id="cnSubject" placeholder="Short title of your concern">
+                <span class="error">Please add a subject.</span>
+              </div>
+              <div class="form-field full">
+                <label for="cnBody">Your concern <span class="req">*</span></label>
+                <textarea class="input textarea" id="cnBody" rows="4" placeholder="Tell the school office what you need help with..."></textarea>
+                <span class="error">Please write your concern.</span>
+              </div>
+              <div class="full" style="display:flex;justify-content:flex-end">
+                <button type="submit" class="btn-sm solid">Send to school office</button>
+              </div>
+            </form>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-head">
+            <div><h3 id="concernListTitle">My concerns</h3><span class="sub" id="concernListSub">Replies from the school office</span></div>
+          </div>
+          <div class="panel-body flush feed" id="concernList"></div>
+        </div>
+      </section>
+
+      <!-- ============ FACULTY & STAFF ============ -->
+      <section class="view" id="view-faculty">
+        <div class="panel">
+          <div class="panel-head">
+            <div><h3>Faculty &amp; staff</h3><span class="sub" id="facultySub">Teachers and school staff</span></div>
+          </div>
+          <div class="panel-body flush table-wrap">
+            <table class="data-table">
+              <thead><tr><th>Name</th><th>Role</th><th>Grade level</th><th>Portal access</th></tr></thead>
+              <tbody id="facultyRows"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-head">
+            <div><h3>School administration</h3><span class="sub">Who to approach for what</span></div>
+          </div>
+          <div class="panel-body"><div class="info-list" id="facultyAdmin"></div></div>
+        </div>
+      </section>
+
       <!-- ============ STUDENTS (principal) ============ -->
       <section class="view" id="view-students">
         <div class="panel">
@@ -412,11 +533,65 @@
           </div>
           <div class="panel-body flush table-wrap">
             <table class="data-table">
-              <thead><tr><th>Name</th><th>Grade</th><th>Section</th><th>LRN</th><th class="num">Balance</th><th></th></tr></thead>
+              <thead><tr><th>Photo</th><th>Name</th><th>Grade</th><th>Section</th><th>LRN</th><th class="num">Balance</th><th></th></tr></thead>
               <tbody id="stuRows"></tbody>
             </table>
           </div>
         </div>
+        <div class="panel" id="photoReview" hidden>
+          <div class="panel-head">
+            <div><h3 id="prTitle">Review profile photo</h3><span class="sub">Remove a photo that is not acceptable and tell the student why</span></div>
+            <button type="button" class="btn-sm" id="btnPrClose">Close</button>
+          </div>
+          <div class="panel-body">
+            <div class="pr-grid">
+              <div><div class="prof-photo big" id="prPhoto"></div>
+                <p class="sc-sub" id="prWho" style="margin-top:8px"></p></div>
+              <div>
+                <div class="form-field">
+                  <label for="prComment">Message to the student <span class="req">*</span></label>
+                  <textarea class="input textarea" id="prComment" rows="3" placeholder="e.g. Your photo is not suitable for school. Please change it to a clear picture of yourself in uniform."></textarea>
+                  <span class="error">Please write a short explanation for the student.</span>
+                </div>
+                <div style="display:flex;gap:10px;flex-wrap:wrap">
+                  <button type="button" class="btn-sm" id="btnPrOk">Looks good &mdash; keep it</button>
+                  <button type="button" class="btn-sm solid danger" id="btnPrRemove">Remove photo &amp; send message</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel" id="promotePanel" hidden>
+          <div class="panel-head">
+            <div><h3>School year &amp; grade promotion</h3><span class="sub" id="promoteSub">Changing the school year moves every student up one grade level</span></div>
+          </div>
+          <div class="panel-body">
+            <div class="info-list">
+              <div class="info-row"><span class="k">School year on record</span><span class="v" id="promoteYearNow">&mdash;</span></div>
+              <div class="info-row"><span class="k">Active students</span><span class="v" id="promoteCount">&mdash;</span></div>
+            </div>
+            <div class="form-row" style="margin-top:16px;align-items:end">
+              <div class="form-field" style="margin-bottom:0">
+                <label for="syInput">Change school year to</label>
+                <input class="input" id="syInput" placeholder="2027-2028">
+                <span class="error">Use a format like 2027-2028.</span>
+              </div>
+              <div class="form-field" style="margin-bottom:0">
+                <button type="button" class="btn-sm solid" id="btnPromotePlan">Change school year&hellip;</button>
+              </div>
+            </div>
+            <div id="promoteConfirm" hidden>
+              <p class="sc-sub" id="promoteSummary" style="margin-top:16px"></p>
+              <ul class="promote-list" id="promoteList"></ul>
+              <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px">
+                <button type="button" class="btn-sm" id="btnPromoteCancel">Cancel</button>
+                <button type="button" class="btn-sm solid" id="btnPromoteGo">Confirm &amp; promote students</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div class="panel" id="stuEditor" hidden>
           <div class="panel-head">
             <div><h3 id="stuEditorTitle">Edit student record</h3><span class="sub">Saved to the portal record</span></div>
@@ -430,7 +605,8 @@
               <div class="form-field"><label for="sfEmail">Email <span class="req">*</span></label><input class="input" id="sfEmail" type="email"><span class="error">Valid email required.</span></div>
               <div class="form-field"><label for="sfPhone">Contact number</label><input class="input" id="sfPhone"></div>
               <div class="form-field"><label for="sfRole">Portal role</label>
-                <select id="sfRole"><option value="student">Student</option><option value="teacher">Teacher</option></select></div>
+                <select id="sfRole"><option value="student">Student</option><option value="teacher">Teacher</option><option value="admin">Admin</option></select></div>
+              <div class="form-field" id="sfCodeField" hidden><label for="sfCode">Staff secret code <span class="req">*</span></label><input class="input" id="sfCode" type="password" autocomplete="off" placeholder="Required for teacher / admin"><span class="error">That staff secret code is not valid.</span></div>
               <div class="form-field" id="sfGradeField"><label for="sfGrade">Grade level</label><select id="sfGrade"></select></div>
               <div class="form-field" id="sfSectionField"><label for="sfSection">Section</label><input class="input" id="sfSection"></div>
               <div class="form-field" id="sfLrnField"><label for="sfLrn">LRN</label><input class="input" id="sfLrn"></div>
@@ -452,6 +628,16 @@
         </div>
       </section>
 
+      <!-- ============ PASSWORD HELP (admins) ============ -->
+      <section class="view" id="view-pwreq">
+        <div class="panel">
+          <div class="panel-head">
+            <div><h3>Forgot-password requests</h3><span class="sub" id="pwSub">Users who asked the office for their password</span></div>
+          </div>
+          <div class="panel-body flush feed" id="pwList"></div>
+        </div>
+      </section>
+
       <!-- ============ PROFILE ============ -->
       <section class="view" id="view-profile">
         <div class="panel" id="profEditor" hidden>
@@ -463,6 +649,15 @@
             </div>
           </div>
           <div class="panel-body">
+            <div class="photo-edit">
+              <div class="prof-photo" id="peAvatar"></div>
+              <div class="pe-controls">
+                <label for="pfPhoto">Profile picture</label>
+                <input type="file" id="pfPhoto" accept="image/*">
+                <button type="button" class="btn-sm" id="btnPhotoRemove">Remove photo</button>
+                <p class="hint">JPG or PNG. Your picture is compressed and stored in this browser.</p>
+              </div>
+            </div>
             <div class="edit-grid">
               <div class="form-field"><label for="pfFirst">First name</label><input class="input" id="pfFirst"></div>
               <div class="form-field"><label for="pfMiddle">Middle name</label><input class="input" id="pfMiddle"></div>
@@ -482,8 +677,15 @@
         </div>
         <div class="profile-grid">
           <div class="panel">
+            <div class="panel-head"><div><h3>Profile picture</h3><span class="sub">Shown beside your name in the portal</span></div></div>
+            <div class="panel-body" style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+              <div class="prof-photo" id="profPhoto"></div>
+              <button type="button" class="btn-sm solid" id="btnPhotoAdd">Add / change photo</button>
+            </div>
+          </div>
+          <div class="panel">
             <div class="panel-head">            <div><h3>Personal information</h3><span class="sub">From your registration survey</span></div>
-            <button type="button" class="btn-sm" id="btnProfEdit" hidden>Edit profile</button></div>
+            <button type="button" class="btn-sm" id="btnProfEdit">Edit profile</button></div>
             <div class="panel-body"><div class="info-list" id="profPersonal"></div></div>
           </div>
           <div class="panel">
@@ -514,7 +716,39 @@
     <p>&copy; <span data-year></span> Norberto Bana Sr. Mem. SDA Elementary School. All rights reserved.</p>
   </footer>
 
+  <nav id="bottomNav">
+    <button type="button" data-bnav="news"><span class="bn-ico">&#128240;</span>Feed</button>
+    <button type="button" data-bnav="dashboard"><span class="bn-ico">&#8962;</span>Home</button>
+    <button type="button" data-bnav="messages"><span class="bn-ico">&#128172;</span>Messages</button>
+    <button type="button" data-bnav="alerts"><span class="bn-ico">&#128276;</span>Alerts</button>
+    <button type="button" data-bnav="more"><span class="bn-ico">&#9776;</span>More</button>
+  </nav>
+
+  <div id="drawerWrap" hidden>
+    <div id="drawerBack"></div>
+    <aside id="drawer">
+      <div class="dw-head">
+        <span class="dw-avatar" id="dwAvatar">--</span>
+        <div class="dw-who">
+          <strong id="dwName"></strong>
+          <span id="dwRole"></span>
+        </div>
+        <button type="button" class="btn-sm dw-edit" id="dwEditBtn">Edit</button>
+      </div>
+      <nav class="dw-links" id="dwLinks"></nav>
+      <button type="button" class="dw-logout dw-install" id="dwInstall" hidden>&#128228; Install app on this phone</button>
+      <button type="button" class="dw-logout" id="dwLogout">Log out</button>
+    </aside>
+  </div>
+
+  <div id="lightbox" hidden>
+    <button id="lbClose" type="button" title="Close">&times;</button>
+    <div id="lbStage"></div>
+  </div>
+
   <script src="app.js"></script>
+  <script src="supabase-config.js"></script>
+  <script src="supabase-sync.js"></script>
   <script src="portal.js"></script>
 </body>
 </html>

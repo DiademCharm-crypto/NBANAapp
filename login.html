@@ -13,6 +13,14 @@
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="portal.css">
+  <link rel="icon" type="image/png" href="logo.png">
+  <link rel="apple-touch-icon" href="logo.png">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0b1f3a">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 </head>
 <body>
 
@@ -20,7 +28,7 @@
   <nav class="navbar">
     <a href="index.html" class="logo">
       <img src="logo.png" alt="NBANA Logo" class="logo-img">
-      <span class="school-name">NBANA SDA Elementary</span>
+      <span class="school-name">NBANA Portal</span>
     </a>
     <ul class="nav-links">
       <li><a href="index.html">Home</a></li>
@@ -37,7 +45,7 @@
     <aside class="auth-brand">
       <span class="brand-badge">&#9670; NBANA School Portal</span>
       <h2>Everything your family needs, in one secure portal.</h2>
-      <p>Create your account by completing the short student information survey below. Your answers set up your official portal profile.</p>
+      <p>Create your account by completing the short information survey below &mdash; choose Student for learners, or Teacher / Admin with the staff secret code. Your answers set up your official portal profile.</p>
       <ul class="brand-perks">
         <li>
           <span class="p-icon">&#182;</span>
@@ -85,8 +93,22 @@
               <span class="error" id="loginPwErr">Please enter your password.</span>
             </div>
 
+            <div class="forgot-row">
+              <button type="button" class="link-btn" id="forgotLink">Forgot password?</button>
+            </div>
+
             <button class="btn btn-primary btn-block btn-lg" type="submit">Sign In to Portal</button>
           </form>
+
+          <div class="forgot-panel" id="forgotPanel" hidden>
+            <p class="hint">Can't sign in? The school office can help. Type the email on your account and tap <b>Request password</b> &mdash; the office will respond in about <b>2&ndash;3 minutes</b>. Wait a moment, then tap <b>Check status</b>.</p>
+            <div class="forgot-grid">
+              <input class="input" type="email" id="fpEmail" placeholder="Your account email" autocomplete="email">
+              <button type="button" class="btn btn-primary" id="fpRequest">Request password</button>
+              <button type="button" class="btn" id="fpCheck">Check status</button>
+            </div>
+            <div class="fp-status" id="fpStatus"></div>
+          </div>
 
           <div class="demo-box">
             <b>Demo accounts</b> &nbsp;<span class="hint">(all password: <b>nbana123</b>)</span><br>
@@ -98,8 +120,18 @@
 
         <!-- ============ SIGN UP (survey wizard) ============ -->
         <div class="auth-pane" id="paneSignUp" hidden>
-          <h3>Student information survey</h3>
-          <p class="hint">All 5 steps must be completed before your account can be created.</p>
+          <h3 id="signupTitle">Student information survey</h3>
+          <p class="hint" id="signupIntro">All 5 steps must be completed before your account can be created.</p>
+
+          <div class="acct-type">
+            <span class="at-label">What kind of account are you making?</span>
+            <div class="seg" role="radiogroup" aria-label="Account type">
+              <button type="button" class="seg-btn active" data-role="student" role="radio" aria-checked="true">Student</button>
+              <button type="button" class="seg-btn" data-role="teacher" role="radio" aria-checked="false">Teacher</button>
+              <button type="button" class="seg-btn" data-role="admin" role="radio" aria-checked="false">Admin</button>
+            </div>
+            <p class="hint" id="acctTypeHint">Student is the default type and needs no secret code.</p>
+          </div>
 
           <div class="wizard-progress">
             <div class="wp-labels">
@@ -113,9 +145,9 @@
 
             <!-- STEP 1: Personal -->
             <div class="wizard-step active" data-step="1">
-              <span class="step-tag">Part 1 &middot; Personal</span>
-              <h3>About the student</h3>
-              <p class="hint">Enter the name and personal details exactly as they appear on official documents.</p>
+              <span class="step-tag" id="personalTag">Part 1 &middot; Personal</span>
+              <h3 id="personalHead">About the student</h3>
+              <p class="hint" id="personalHint">Enter the name and personal details exactly as they appear on official documents.</p>
 
               <div class="form-row">
                 <div class="form-field">
@@ -223,13 +255,13 @@
 
             <!-- STEP 3: Student & guardian -->
             <div class="wizard-step" data-step="3">
-              <span class="step-tag">Part 3 &middot; Schooling</span>
-              <h3>School &amp; guardian details</h3>
-              <p class="hint">Tell us the grade level the student will enroll in and who the parent or guardian is.</p>
+              <span class="step-tag" id="schoolTag">Part 3 &middot; Schooling</span>
+              <h3 id="schoolHead">School &amp; guardian details</h3>
+              <p class="hint" id="schoolHint">Tell us the grade level the student will enroll in and who the parent or guardian is.</p>
 
-              <div class="form-row">
+              <div class="form-row" id="gradeRow">
                 <div class="form-field">
-                  <label for="f_grade">Grade level <span class="req">*</span></label>
+                  <label for="f_grade" id="gradeLabel">Grade level <span class="req">*</span></label>
                   <select id="f_grade">
                     <option value="">Select...</option>
                     <option>Kinder 1</option>
@@ -243,7 +275,7 @@
                   </select>
                   <span class="error">Please select a grade level.</span>
                 </div>
-                <div class="form-field">
+                <div class="form-field" id="sectionField">
                   <label for="f_section">Section</label>
                   <input class="input" type="text" id="f_section" placeholder="Mabini">
                 </div>
@@ -263,7 +295,7 @@
                 </div>
               </div>
 
-              <div class="form-field">
+              <div class="form-field" id="lrnField">
                 <label for="f_lrn">Learner Reference Number (LRN)</label>
                 <input class="input" type="text" id="f_lrn" inputmode="numeric" maxlength="12" placeholder="12-digit LRN (optional)">
               </div>
@@ -320,6 +352,13 @@
                 </div>
               </div>
 
+              <div class="form-field" id="staffCodeField" hidden>
+                <label for="f_code">Staff secret code <span class="req">*</span></label>
+                <input class="input" type="password" id="f_code" autocomplete="off" placeholder="Required for Teacher and Admin accounts">
+                <span class="error">That staff secret code is not valid. Ask the principal for the current code.</span>
+                <p class="hint">The school principal issues this code to teachers and administrators only.</p>
+              </div>
+
               <label class="checkline">
                 <input type="checkbox" id="f_agree">
                 <span>I confirm that the information above is correct and I agree to the school's acceptable use and privacy policy for the NBANA School Portal.</span>
@@ -362,6 +401,8 @@
   </footer>
 
   <script src="app.js"></script>
+  <script src="supabase-config.js"></script>
+  <script src="supabase-sync.js"></script>
   <script src="login.js"></script>
 </body>
 </html>

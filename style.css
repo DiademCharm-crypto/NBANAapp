@@ -96,7 +96,10 @@ body {
 .school-name {
   font-weight: 600;
   font-size: 1.1rem;
+  color: #ffffff;
 }
+
+.navbar .logo { color: #ffffff; }
 
 .nav-links {
   display: flex;
@@ -1016,6 +1019,62 @@ footer {
   color: var(--text-soft);
   font-size: 0.88rem;
   margin-bottom: 22px;
+}
+
+/* Account-type segmented toggle (create-account wizard) */
+.acct-type {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 14px 12px;
+  margin-bottom: 20px;
+}
+
+.acct-type .at-label {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-soft);
+  margin-bottom: 9px;
+}
+
+.acct-type .seg {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px;
+}
+
+.acct-type .seg-btn {
+  font-family: inherit;
+  border: none;
+  background: transparent;
+  padding: 10px 6px;
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: var(--text-soft);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.acct-type .seg-btn:hover { color: var(--navy); }
+
+.acct-type .seg-btn.active {
+  background: var(--navy);
+  color: #fff;
+  box-shadow: 0 3px 8px rgba(13, 44, 84, 0.25);
+}
+
+.acct-type .hint {
+  color: var(--text-soft);
+  font-size: 0.8rem;
+  margin: 10px 0 0;
 }
 
 /* Forms */

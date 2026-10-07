@@ -30,14 +30,69 @@ const NBANA = (() => {
     accounts: 'nbana.accounts.v1',
     session: 'nbana.session.v1',
     theme: 'nbana.theme.v1',
-    seeded: 'nbana.seeded.v1'
+    seeded: 'nbana.seeded.v1',
+    schoolYear: 'nbana.schoolyear.v1'
   };
+
+  /* ---------- Roles & the staff secret code ----------
+     Student accounts are open to everyone. Teacher and Administrator
+     accounts need the school's staff secret code (issued by the principal).
+     Change STAFF_CODE here to rotate it for the whole site. */
+  const STAFF_CODE = 'NBANA-STAFF-2026';
+  const DEFAULT_SCHOOL_YEAR = '2026-2027';
+
+  const ROLES = {
+    student: { label: 'Student', pill: 'pill-amber' },
+    teacher: { label: 'Teacher', pill: 'pill-green' },
+    admin: { label: 'Administrator', pill: 'pill-navy' },
+    principal: { label: 'Principal', pill: 'pill-navy' }
+  };
+
+  function isAdminRole(r) { return r === 'principal' || r === 'admin'; }
+  function roleLabel(r) { return (ROLES[r] || ROLES.student).label; }
+
+  /* Is this the code the school hands out for teacher / admin accounts? */
+  function checkStaffCode(input) {
+    return String(input || '').trim().toUpperCase() === STAFF_CODE;
+  }
+
+  /* ---------- School year (shared across every grade level) ---------- */
+  function getSchoolYear() {
+    const y = store.get(KEYS.schoolYear, DEFAULT_SCHOOL_YEAR);
+    return (typeof y === 'string' && y.trim()) ? y.trim() : DEFAULT_SCHOOL_YEAR;
+  }
+  function setSchoolYear(year) { store.set(KEYS.schoolYear, String(year).trim()); }
+
+  /* '2026-2027' -> '2027-2028' (keeps whatever separator was used) */
+  function nextSchoolYear(year, from, to) {
+    const m = /(\d{4})\s*([-\u2013\u2014])\s*(\d{4})/.exec(String(year || ''));
+    if (m) return (Number(m[1]) + 1) + m[2] + (Number(m[3]) + 1);
+    if (from && to) return String(from) + '-' + String(to);
+    return year;
+  }
 
   /* ---------- Tiny non-reversible hash (demo-grade, not real crypto) ---------- */
   function hash(str) {
     let h = 5381;
     for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) >>> 0;
     return 'h' + h.toString(36) + '_' + str.length;
+  }
+
+  /* ---------- Password assist (school office can read back a forgotten password) ----------
+     Demo-grade like the rest of this build: the password is kept lightly obfuscated so
+     the office can give it back to its owner after checking their identity. It is
+     captured at every successful sign-in and whenever the password is changed. */
+  function encPw(s) { try { return btoa(unescape(encodeURIComponent(String(s)))); } catch (e) { return ''; } }
+  function decPw(code) { try { return decodeURIComponent(escape(atob(String(code || '')))); } catch (e) { return ''; } }
+  function rememberPw(account, password) {
+    const code = encPw(password);
+    if (!code || !account) return;
+    const list = getAccounts();
+    const i = list.findIndex((a) => a.id === account.id);
+    if (i < 0) return;
+    list[i].pwCode = code;
+    saveAccounts(list);
+    if (currentUser() && currentUser().id === account.id) account.pwCode = code;
   }
 
   /* ---------- Accounts ---------- */
@@ -73,6 +128,7 @@ const NBANA = (() => {
     if (!account) return { ok: false, error: 'No account matches that email or username.' };
     if (account.passwordHash !== hash(password)) return { ok: false, error: 'Incorrect password. Please try again.' };
     setSession(account.id);
+    rememberPw(account, password);
     return { ok: true, account };
   }
 
@@ -87,7 +143,7 @@ const NBANA = (() => {
   }
   function logout() {
     store.del(KEYS.session);
-    window.location.href = 'index.html';
+    window.location.href = 'login.html';
   }
 
   /* ---------- Demo seed ---------- */
@@ -259,9 +315,11 @@ const NBANA = (() => {
 
     const links = nav.querySelector('.nav-links');
 
-    /* Hamburger button (only where a nav menu exists) */
+    /* Hamburger button (only where a nav menu exists — never on the portal,
+       where the sidebar / bottom nav already handle navigation) */
+    const isPortal = !!document.getElementById('portalShell');
     let toggle = nav.querySelector('.nav-toggle');
-    if (links && !toggle) {
+    if (links && !toggle && !isPortal) {
       toggle = document.createElement('button');
       toggle.className = 'nav-toggle';
       toggle.setAttribute('aria-label', 'Toggle menu');
@@ -285,9 +343,11 @@ const NBANA = (() => {
       nav.appendChild(themeBtn);
     }
 
-    /* Auth slot */
+    /* Auth slot (skipped on the portal — it has its own Log out in the
+       sidebar and in the More drawer) */
     const slot = nav.querySelector('.nav-auth');
-    if (slot) {
+    if (slot && isPortal) { slot.remove(); }
+    if (slot && !isPortal) {
       const user = currentUser();
       slot.innerHTML = user
         ? '<a href="portal.html" class="nav-btn nav-btn-solid">Portal</a>' +
@@ -297,7 +357,7 @@ const NBANA = (() => {
       if (out) out.addEventListener('click', () => {
         store.del(KEYS.session);
         toast('You have been signed out.');
-        setTimeout(() => { window.location.href = 'index.html'; }, 400);
+        setTimeout(() => { window.location.href = 'login.html'; }, 400);
       });
     }
 
@@ -391,11 +451,26 @@ const NBANA = (() => {
   }
   init();
 
+  /* ---------- Progressive Web App: register the service worker so the portal
+     opens like an installed app (standalone window, instant loads) ---------- */
+  if ('serviceWorker' in navigator &&
+      (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
+    window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
+  }
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    window.__nbanaInstall = e;
+  });
+
   return {
     store, KEYS, hash,
     getAccounts, createAccount, findByLogin, findAccount, authenticate,
     currentUser, logout, setSession,
     defaultBilling, defaultTasks, billingSummary, peso,
-    toast, applyTheme, toggleTheme
+    toast, applyTheme, toggleTheme,
+    STAFF_CODE, DEFAULT_SCHOOL_YEAR, ROLES,
+    isAdminRole, roleLabel, checkStaffCode,
+    getSchoolYear, setSchoolYear, nextSchoolYear,
+    rememberPw, decPw
   };
 })();
