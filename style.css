@@ -1019,6 +1019,9 @@ footer {
 }
 
 /* Forms */
+/* The hidden attribute must always win over display rules below */
+[hidden] { display: none !important; }
+
 .form-field { margin-bottom: 16px; }
 
 .form-field label {
