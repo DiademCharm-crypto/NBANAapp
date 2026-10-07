@@ -685,8 +685,30 @@
   }
 
   /* ---------------- Attendance ---------------- */
-  function computeAttendance() {
-    const rng = makeRng(seedOf(user.id + 'attendance'));
+  let attTargetId = null;
+  let attEditing = false;
+
+  function localISO(d) {
+    const p = (n) => (n < 10 ? '0' : '') + n;
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+  }
+
+  function attTarget() {
+    if (!isAdmin) return user;
+    const list = studentsInScope();
+    const t = list.find(a => a.id === attTargetId) || list[0] || null;
+    if (t) attTargetId = t.id;
+    return t;
+  }
+
+  function computeAttendance(acct) {
+    const stored = loadMap(K.attendance)[acct.id];
+    if (stored) {
+      return stored.map(d => ({
+        date: new Date(d.date + 'T00:00:00'), iso: d.date, status: d.status, time: d.time || '\u2014'
+      }));
+    }
+    const rng = makeRng(seedOf(acct.id + 'attendance'));
     const days = [];
     const d = new Date();
     d.setDate(d.getDate() - 1);
@@ -695,7 +717,7 @@
       if (dow !== 0 && dow !== 6) {
         const r = rng();
         const status = r < 0.86 ? 'Present' : (r < 0.94 ? 'Late' : 'Absent');
-        let time = '&mdash;';
+        let time = '\u2014';
         if (status === 'Present') {
           const m = 18 + Math.floor(rng() * 16);
           time = '7:' + (m < 10 ? '0' + m : m) + ' AM';
@@ -703,15 +725,22 @@
           const m = 46 + Math.floor(rng() * 13);
           time = m >= 60 ? '8:' + (m - 60 < 10 ? '0' + (m - 60) : m - 60) + ' AM' : '7:' + m + ' AM';
         }
-        days.push({ date: new Date(d), status, time });
+        days.push({ date: new Date(d), iso: localISO(d), status, time });
       }
       d.setDate(d.getDate() - 1);
     }
     return days;
   }
 
+  const ATT_STATUSES = ['Present', 'Late', 'Absent'];
+
   function renderAttendance() {
-    const days = computeAttendance();
+    const t = attTarget();
+    if (!t) {
+      $('attRows').innerHTML = '<tr><td colspan="4"><div class="empty-state">No students to display.</div></td></tr>';
+      return;
+    }
+    const days = computeAttendance(t);
     const present = days.filter(x => x.status === 'Present').length;
     const late = days.filter(x => x.status === 'Late').length;
     const absent = days.filter(x => x.status === 'Absent').length;
@@ -722,15 +751,110 @@
     $('attLate').textContent = late;
     $('attRate').textContent = rate + '%';
 
-    $('attRows').innerHTML = days.map(x => {
+    const rowsHtml = days.map(x => {
+      const dateStr = x.date.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
+      const dayStr = x.date.toLocaleDateString('en-PH', { weekday: 'long' });
+      if (attEditing) {
+        return '<tr><td>' + dateStr + '</td><td>' + dayStr + '</td>' +
+          '<td><select class="input input-sm" data-ats="' + x.iso + '">' +
+          ATT_STATUSES.map(s => '<option' + (s === x.status ? ' selected' : '') + '>' + s + '</option>').join('') +
+          '</select></td>' +
+          '<td><input class="input input-sm" data-attime="' + x.iso + '" value="' + esc(x.time === '\u2014' ? '' : x.time) + '" placeholder="e.g. 7:20 AM"> ' +
+          '<button type="button" class="btn-del" data-atdel="' + x.iso + '" title="Remove day">&times;</button></td></tr>';
+      }
       const pill = x.status === 'Present' ? 'pill-green' : x.status === 'Late' ? 'pill-amber' : 'pill-red';
-      return '<tr><td>' + x.date.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) +
-        '</td><td>' + x.date.toLocaleDateString('en-PH', { weekday: 'long' }) +
-        '</td><td><span class="pill ' + pill + '">' + x.status + '</span></td><td>' + x.time + '</td></tr>';
+      return '<tr><td>' + dateStr + '</td><td>' + dayStr + '</td>' +
+        '<td><span class="pill ' + pill + '">' + x.status + '</span></td><td>' + esc(x.time) + '</td></tr>';
     }).join('');
 
-    $('sumAttendance').textContent = rate + '%';
-    $('sumAttendanceSub').textContent = present + late + ' of ' + days.length + ' school days attended';
+    const addRow = attEditing
+      ? '<tr class="att-add"><td><input class="input input-sm" type="date" id="attNewDate" value="' + localISO(new Date()) + '"></td>' +
+        '<td><select class="input input-sm" id="attNewStatus">' +
+        ATT_STATUSES.map(s => '<option>' + s + '</option>').join('') + '</select></td>' +
+        '<td colspan="2"><button type="button" class="btn-sm solid" id="btnAttAdd">+ Add school day</button></td></tr>'
+      : '';
+    $('attRows').innerHTML = rowsHtml + addRow;
+
+    if (attEditing) {
+      document.querySelectorAll('[data-atdel]').forEach(b => {
+        b.addEventListener('click', () => {
+          const map = loadMap(K.attendance);
+          map[t.id] = computeAttendance(t)
+            .filter(x => x.iso !== b.dataset.atdel)
+            .map(x => ({ date: x.iso, status: x.status, time: x.time }));
+          saveMap(K.attendance, map);
+          renderAttendance();
+        });
+      });
+      const addBtn = $('btnAttAdd');
+      if (addBtn) addBtn.addEventListener('click', () => {
+        const iso = $('attNewDate').value;
+        if (!iso) { NBANA.toast('Pick a date first.', 'error'); return; }
+        const map = loadMap(K.attendance);
+        const cur = computeAttendance(t).map(x => ({ date: x.iso, status: x.status, time: x.time }));
+        if (cur.some(x => x.date === iso)) { NBANA.toast('That date is already recorded.', 'error'); return; }
+        cur.push({ date: iso, status: $('attNewStatus').value, time: '\u2014' });
+        map[t.id] = cur;
+        saveMap(K.attendance, map);
+        renderAttendance();
+        NBANA.toast('School day added.', 'success');
+      });
+    }
+
+    if (!isAdmin) {
+      $('sumAttendance').textContent = rate + '%';
+      $('sumAttendanceSub').textContent = present + late + ' of ' + days.length + ' school days attended';
+    }
+  }
+
+  function attEditButtons() {
+    $('btnAttEdit').hidden = attEditing;
+    $('btnAttSave').hidden = !attEditing;
+    $('btnAttCancel').hidden = !attEditing;
+  }
+
+  function attInit() {
+    if (!isAdmin) return;
+    $('attAdmin').hidden = false;
+    const list = studentsInScope();
+    $('attStudentSel').innerHTML = list.map(a =>
+      '<option value="' + esc(a.id) + '">' + esc(nameOf(a)) + ' \u2014 ' + esc((a.student && a.student.section) || 'Section') + '</option>'
+    ).join('') || '<option>No students in this class</option>';
+    $('attStudentSel').addEventListener('change', (e) => {
+      attTargetId = e.target.value;
+      attEditing = false; attEditButtons();
+      renderAttendance();
+    });
+    $('btnAttEdit').addEventListener('click', () => {
+      if (!attTarget()) return;
+      attEditing = true; attEditButtons(); renderAttendance();
+    });
+    $('btnAttCancel').addEventListener('click', () => {
+      attEditing = false; attEditButtons(); renderAttendance();
+    });
+    $('btnAttSave').addEventListener('click', () => {
+      const t = attTarget();
+      if (!t) return;
+      const map = loadMap(K.attendance);
+      const rows = computeAttendance(t).map(x => {
+        const sel = document.querySelector('[data-ats="' + x.iso + '"]');
+        const timeIn = document.querySelector('[data-attime="' + x.iso + '"]');
+        return {
+          date: x.iso,
+          status: sel ? sel.value : x.status,
+          time: timeIn ? (timeIn.value.trim() || '\u2014') : x.time
+        };
+      });
+      const newDate = $('attNewDate') && $('attNewDate').value;
+      if (newDate && !rows.some(r => r.date === newDate)) {
+        rows.push({ date: newDate, status: $('attNewStatus').value, time: '\u2014' });
+      }
+      map[t.id] = rows;
+      saveMap(K.attendance, map);
+      attEditing = false; attEditButtons();
+      renderAttendance();
+      NBANA.toast('Attendance saved for ' + nameOf(t) + '.', 'success');
+    });
   }
 
   /* ---------------- Schedule ---------------- */
