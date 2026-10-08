@@ -2,11 +2,23 @@
    NBANA School Portal - Dashboard styles
    ============================================================ */
 
+/* The portal fills the window exactly: header, then the shell, then the footer.
+   Without this the shell was a full viewport tall on top of the header and the
+   footer, which left a dead band above the footer on short pages. */
+body.portal-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+body.portal-page footer { margin-top: 0; }
+
 .portal-shell {
   display: grid;
   grid-template-columns: 255px 1fr;
-  min-height: calc(100vh - 66px);
-  align-items: start;
+  flex: 1 0 auto;
+  min-height: 0;
+  align-items: stretch;
 }
 
 /* ---------------- Sidebar ---------------- */
@@ -16,7 +28,10 @@
   padding: 22px 14px;
   position: sticky;
   top: 66px;
-  height: calc(100vh - 66px);
+  /* Stretches to the bottom of the shell (so the navy column meets the footer),
+     and never grows past the window, where it scrolls inside itself. */
+  height: auto;
+  max-height: calc(100vh - 66px);
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -143,6 +158,8 @@
 .portal-main {
   padding: 26px 30px 50px;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .portal-top {
@@ -204,7 +221,16 @@
 
 /* ---------------- Views ---------------- */
 .view { display: none; }
-.view.active { display: block; animation: viewIn 0.3s ease; }
+.view.active {
+  display: flex;
+  flex-direction: column;
+  flex: 1 0 auto;
+  animation: viewIn 0.3s ease;
+}
+
+/* The last card grows into the leftover height so a short page looks finished
+   instead of ending in empty space. */
+.view.active > .panel:last-child { flex: 1 0 auto; }
 
 @keyframes viewIn {
   from { opacity: 0; transform: translateY(10px); }
