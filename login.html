@@ -28,12 +28,7 @@
       -webkit-backdrop-filter: blur(10px);
       backdrop-filter: blur(10px);
       transition: opacity 0.4s ease, visibility 0.4s ease;
-      /* Hidden until the page has proven it is slow: instant, cached
-         navigations must never flash this overlay. */
-      opacity: 0;
-      visibility: hidden;
     }
-    #pcLoad.on { opacity: 1; visibility: visible; }
     #pcLoad.gone { opacity: 0; visibility: hidden; }
     #pcLoad .pc-load-card { text-align: center; }
     #pcLoad .pc-load-logo {
@@ -439,9 +434,10 @@
   <script src="supabase-sync.js"></script>
   <script src="login.js"></script>
   <script>
-    /* PC popup loading: desktop only — phones already show the app splash.
-       The overlay stays hidden unless the page is genuinely slow to load,
-       so moving between pages never flashes a loading screen. */
+    /* Sign-in page: the logo overlay greets the visitor again — this is an
+       entry page, not a move inside the portal, so a refresh shows it just
+       like it used to. Signing in or creating an account keeps it up while
+       the account is being checked and the portal opens. */
     (function () {
       var ov = document.getElementById('pcLoad');
       if (!ov) return;
@@ -449,23 +445,12 @@
         if (ov.parentNode) ov.parentNode.removeChild(ov);
         return;
       }
-      var finished = false;
-      function done() {
-        if (finished) return;
-        finished = true;
-        clearTimeout(timer);
-        ov.classList.remove('on');
-        ov.classList.add('gone');
-        setTimeout(function () { if (ov.parentNode) ov.parentNode.removeChild(ov); }, 450);
-      }
-      var timer = setTimeout(function () {
-        if (document.readyState !== 'complete') ov.classList.add('on');
-      }, 700);
-      if (document.readyState === 'complete') done();
-      else {
-        window.addEventListener('load', done);
-        setTimeout(done, 6000);   /* never hold the page hostage */
-      }
+      function show() { clearTimeout(timer); ov.classList.remove('gone'); }
+      function hide() { clearTimeout(timer); ov.classList.add('gone'); }
+      window.__nbanaLoad = { show: show, hide: hide };
+      var timer = setTimeout(hide, 6000);      /* never hold the page hostage */
+      if (document.readyState === 'complete') setTimeout(hide, 500);
+      else window.addEventListener('load', function () { setTimeout(hide, 500); });
     })();
   </script>
   <style id="bootRecoveryCss">

@@ -869,8 +869,21 @@ footer {
    AUTH / SIGN-UP SURVEY WIZARD
    ============================================================ */
 
+/* The sign-in page is exactly one window tall: header, card, footer. Without
+   this the panel was a full window tall on top of the header and the footer,
+   which left a tall empty band and a scrollbar on a page with nothing to
+   scroll — and the page scrolled itself down on load. */
+body.auth-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+body.auth-page footer { margin-top: 0; }
+
 .auth-wrap {
-  min-height: calc(100vh - 70px);
+  flex: 1 0 auto;
+  min-height: 0;
   display: grid;
   grid-template-columns: 1fr;
 }
@@ -974,8 +987,10 @@ footer {
   width: 100%;
   max-width: 560px;
   padding: 32px 34px;
-  align-self: flex-start;
-  margin-top: 18px;
+  /* Centred in the window instead of pinned to the top, so the sign-in card
+     uses the whole page rather than leaving a band of empty space below it */
+  align-self: center;
+  margin: 18px 0;
 }
 
 /* Tabs */

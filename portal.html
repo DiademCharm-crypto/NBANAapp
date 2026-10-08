@@ -236,6 +236,7 @@
           <span class="admin-tag">Admin mode</span>
           <label for="feesStudentSel">Editing student</label>
           <select id="feesStudentSel" class="input input-sm"></select>
+          <input class="input input-sm pick-search" type="search" id="feesStudentSearch" placeholder="Search student…" aria-label="Search for a student">
         </div>
         <div class="balance-hero" id="balanceHero">
           <span class="bh-label">Outstanding balance</span>
@@ -313,6 +314,7 @@
           <span class="admin-tag">Admin mode</span>
           <label for="gradesStudentSel">Student</label>
           <select id="gradesStudentSel" class="input input-sm"></select>
+          <input class="input input-sm pick-search" type="search" id="gradesStudentSearch" placeholder="Search student…" aria-label="Search for a student">
           <button type="button" class="btn-sm" id="btnGradeEdit">Enter grades</button>
           <button type="button" class="btn-sm solid" id="btnGradeSave" hidden>Save</button>
           <button type="button" class="btn-sm" id="btnGradeCancel" hidden>Cancel</button>
@@ -345,6 +347,7 @@
           <span class="admin-tag">Admin mode</span>
           <label for="attStudentSel">Student</label>
           <select id="attStudentSel" class="input input-sm"></select>
+          <input class="input input-sm pick-search" type="search" id="attStudentSearch" placeholder="Search student…" aria-label="Search for a student">
           <button type="button" class="btn-sm" id="btnAttEdit">Mark attendance</button>
           <button type="button" class="btn-sm solid" id="btnAttSave" hidden>Save</button>
           <button type="button" class="btn-sm" id="btnAttCancel" hidden>Cancel</button>
@@ -559,6 +562,7 @@
         <div class="monitor-switch" id="monitorSwitch" hidden>
           <button type="button" class="ms-btn active" data-monmode="concerns">Concerns</button>
           <button type="button" class="ms-btn" data-monmode="threads">Teacher &harr; Student</button>
+          <button type="button" class="ms-btn ms-lock" id="btnMonLock" hidden title="Lock message monitoring">&#128274; Lock</button>
         </div>
         <div class="panel chat-panel" id="chatPanel">
           <!-- Principal: student concerns come first (left side) -->
@@ -566,6 +570,7 @@
             <div class="chat-side-head">
               <h3>Concerns</h3>
               <span class="sub" id="concernSideSub">What students sent to the school office</span>
+              <input class="input input-sm thread-search" type="search" id="concSearch" placeholder="Search student or subject…" aria-label="Search concerns">
             </div>
             <div class="thread-list" id="monitorConcernList"></div>
           </div>
@@ -574,6 +579,7 @@
             <div class="chat-side-head">
               <h3>Teacher &harr; Student</h3>
               <span class="sub" id="monitorSideSub">Read-only monitoring</span>
+              <input class="input input-sm thread-search" type="search" id="monSearch" placeholder="Search student or teacher…" aria-label="Search conversations">
               <div class="mon-grade">
                 <label for="monGradeSel">Student grade</label>
                 <select id="monGradeSel" class="input input-sm"></select>
@@ -586,13 +592,19 @@
             <div class="chat-side-head">
               <h3 id="chatSideTitle">Conversations</h3>
               <span class="sub" id="chatSideSub"></span>
+              <input class="input input-sm thread-search" type="search" id="msgSearch" placeholder="Search student…" aria-label="Search conversations">
             </div>
             <div class="thread-list" id="threadList"></div>
           </div>
           <div class="chat-main">
             <div class="chat-head" id="chatHead"></div>
             <div class="chat-body" id="chatBody"></div>
+            <div class="chat-pending" id="chatPending" hidden></div>
             <form class="chat-compose" id="chatForm" hidden>
+              <button type="button" class="chat-attach" id="chatPhoto" title="Send a photo" aria-label="Send a photo">&#128247;</button>
+              <button type="button" class="chat-attach" id="chatFile" title="Attach a file (PDF, Word, Excel…)" aria-label="Attach a file">&#128206;</button>
+              <input type="file" id="chatPhotoInput" accept="image/*" hidden>
+              <input type="file" id="chatFileInput" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.rtf" hidden>
               <input class="input" id="chatInput" placeholder="Aa" autocomplete="off" aria-label="Message">
               <button type="submit" class="chat-send" aria-label="Send message">&#10148;</button>
             </form>
@@ -699,6 +711,7 @@
           <span class="admin-tag">Class list</span>
           <label for="stuGradeSel">Student grade</label>
           <select id="stuGradeSel" class="input input-sm"></select>
+          <input class="input input-sm pick-search" type="search" id="stuSearch" placeholder="Search name or LRN…" aria-label="Search students">
           <span class="sc-sub" id="stuFilterNote">Boys and girls are listed in separate groups</span>
         </div>
         <div class="panel">
@@ -1062,7 +1075,7 @@
          common reason a page keeps showing an old or broken build. */
       function refresh() {
         var btn = document.getElementById('bootRetry');
-        if (btn) { btn.disabled = true; btn.textContent = 'Refreshing\u2026'; }
+        if (btn) { btn.disabled = true; btn.textContent = 'Refreshing…'; }
         var steps = [];
         try {
           if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {

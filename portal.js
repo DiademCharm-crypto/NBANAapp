@@ -1483,6 +1483,7 @@
       $('btnFeeEdit').textContent = 'Edit fees';
       renderFees();
     });
+    pickerSearchInit('feesStudentSearch', 'feesStudentSel');
     $('btnFeeEdit').addEventListener('click', () => {
       const t = feeTarget();
       if (!t) return;
@@ -1682,6 +1683,7 @@
       gradeEditing = false; gradeEditButtons();
       renderGrades();
     });
+    pickerSearchInit('gradesStudentSearch', 'gradesStudentSel');
     $('btnGradeEdit').addEventListener('click', () => {
       if (!gradeTarget()) return;
       gradeEditing = true; gradeEditButtons(); renderGrades();
@@ -1844,6 +1846,7 @@
       attEditing = false; attEditButtons();
       renderAttendance();
     });
+    pickerSearchInit('attStudentSearch', 'attStudentSel');
     $('btnAttEdit').addEventListener('click', () => {
       if (!attTarget()) return;
       attEditing = true; attEditButtons(); renderAttendance();
@@ -2637,12 +2640,18 @@
       n + ' student' + (n === 1 ? '' : 's') + '</td></tr>';
   }
 
+  let stuQuery = '';
+
   function renderStudents() {
     const all = allStudents();
     const enrolled = activeStudents().length;
-    const list = stuGradeFilter === 'all'
+    const byGrade = stuGradeFilter === 'all'
       ? all
       : all.filter(a => ((a.student || {}).gradeLevel || '') === stuGradeFilter);
+    const q = stuQuery.trim().toLowerCase();
+    const list = q
+      ? byGrade.filter(a => matchesQuery(q, nameOf(a) + ' ' + ((a.student || {}).lrn || '') + ' ' + (a.email || '')))
+      : byGrade;
     const boys = list.filter(a => !isGirl(a));
     const girls = list.filter(a => isGirl(a));
 
@@ -2661,10 +2670,11 @@
     }
 
     if (!list.length) {
-      $('stuRows').innerHTML = '<tr><td colspan="6"><div class="empty-state">No students in ' +
-        esc(stuGradeFilter === 'all' ? 'this school' : stuGradeFilter) + ' yet.</div></td></tr>';
+      $('stuRows').innerHTML = '<tr><td colspan="6"><div class="empty-state">' + (q
+        ? 'No student matches ' + esc('"' + stuQuery.trim() + '"') + '.'
+        : 'No students in ' + esc(stuGradeFilter === 'all' ? 'this school' : stuGradeFilter) + ' yet.') + '</div></td></tr>';
     } else if (stuGradeFilter === 'all') {
-      $('stuRows').innerHTML = all.map(stuRowHtml).join('');
+      $('stuRows').innerHTML = list.map(stuRowHtml).join('');
     } else {
       $('stuRows').innerHTML =
         (boys.length ? stuGroupRow('Boys', boys.length) + boys.map(stuRowHtml).join('') : '') +
@@ -3003,6 +3013,10 @@
       stuGradeFilter = e.target.value;
       renderStudents();
     });
+    if ($('stuSearch')) $('stuSearch').addEventListener('input', (e) => {
+      stuQuery = e.target.value;
+      renderStudents();
+    });
     fillStudentSelects();
     renderStudents();
 
@@ -3327,6 +3341,53 @@
 
   function navLabels() {
     if (isPrincipal) $('navContactLabel').textContent = 'School Concerns';
+    /* Phones: the fourth slot in the bottom bar follows the account. Students
+       get Tuition, teachers get Grades; the school office keeps Alerts. */
+    const slot = document.querySelector('#bottomNav [data-bnav="alerts"]');
+    if (!slot) return;
+    if (role === 'student') {
+      slot.dataset.bnav = 'fees';
+      slot.innerHTML = '<span class="bn-ico">&#8369;</span>Tuition';
+      slot.setAttribute('aria-label', 'Tuition');
+    } else if (role === 'teacher') {
+      slot.dataset.bnav = 'grades';
+      slot.innerHTML = '<span class="bn-ico">&#9733;</span>Grades';
+      slot.setAttribute('aria-label', 'Grades');
+    }
+  }
+
+  /* Search inside an admin student picker: typing narrows the list to matching
+     students and opens the best match, so finding one child among hundreds
+     takes a couple of letters instead of scrolling a long list. */
+  function pickerSearchInit(inputId, selId) {
+    const box = $(inputId), sel = $(selId);
+    if (!box || !sel) return;
+    const all = Array.prototype.map.call(sel.options, (o) => ({ v: o.value, label: o.textContent }));
+    if (!all.length) return;
+    let last = null;
+    let chosen = sel.value;
+    function apply() {
+      const q = box.value.trim().toLowerCase();
+      if (q === last) return;
+      last = q;
+      /* Rebuilding the options makes the browser select the first one, so the
+         previous pick has to be captured before the list is replaced. */
+      const prev = sel.value;
+      if (prev) chosen = prev;
+      const hits = q ? all.filter((o) => o.label.toLowerCase().indexOf(q) > -1) : all;
+      sel.innerHTML = hits.length
+        ? hits.map((o) => '<option value="' + esc(o.v) + '">' + esc(o.label) + '</option>').join('')
+        : '<option value="">No student matches \u201c' + esc(box.value.trim()) + '\u201d</option>';
+      let pick;
+      if (q) pick = hits.some((o) => o.v === prev) ? prev : (hits.length ? hits[0].v : '');
+      else pick = all.some((o) => o.v === chosen) ? chosen : (hits.length ? hits[0].v : '');
+      sel.value = pick;
+      if (pick !== prev) sel.dispatchEvent(new Event('change'));
+    }
+    box.addEventListener('input', apply);
+    box.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') { box.value = ''; apply(); }
+    });
   }
 
   function relTime(iso) {
@@ -3550,6 +3611,20 @@
   /* Two-state switch: Concerns is the default (and left) option, Teacher <->
      Student conversations are the second state. */
   let monitorMode = lsGet(K.monMode) === 'threads' ? 'threads' : 'concerns';
+  /* Search boxes: the office and the teachers find one student among hundreds
+     by typing a couple of letters instead of scrolling a long list. */
+  let msgQuery = '';
+  let monQuery = '';
+  let concernQuery = '';
+  /* Message monitoring is locked behind the staff secret code — the same code
+     the principal hands out to teachers and administrators. Unlocking lasts
+     for the browsing session only. */
+  const MON_SS = 'nbana.monitor.unlocked.v1';
+  function ssGet(k) { try { return sessionStorage.getItem(k); } catch (e) { return null; } }
+  function ssSet(k, v) { try { if (v == null) sessionStorage.removeItem(k); else sessionStorage.setItem(k, String(v)); } catch (e) {} }
+  let monUnlocked = ssGet(MON_SS) === '1';
+  /* A photo or file picked in the composer but not sent yet */
+  let pendingFile = null;
 
   function loadThreads() { return NBANA.store.get(K.threads, {}) || {}; }
   function saveThreads(t) { NBANA.store.set(K.threads, t); }
@@ -3570,10 +3645,184 @@
   }
   function threadOf(key) { return loadThreads()[key] || null; }
 
+  /* ---------------- Attachments (photos, PDFs, Word files) ----------------
+     Photos are shrunk in the browser before they are stored, so a camera shot
+     that would otherwise blow up the school's shared record arrives as a
+     couple of hundred kilobytes. Other documents are capped instead. */
+  const ATT_IMAGE_MAX = 6 * 1024 * 1024;
+  const ATT_FILE_MAX = 1.5 * 1024 * 1024;
+
+  function fileSizeText(n) {
+    if (!n) return '0 KB';
+    if (n < 1024) return n + ' B';
+    if (n < 1024 * 1024) return Math.round(n / 1024) + ' KB';
+    return (n / (1024 * 1024)).toFixed(1) + ' MB';
+  }
+
+  function shrinkImage(file, done) {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const max = 1280;
+      let w = img.width, h = img.height;
+      if (w > max || h > max) {
+        const k = Math.min(max / w, max / h);
+        w = Math.max(1, Math.round(w * k));
+        h = Math.max(1, Math.round(h * k));
+      }
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      const cx = c.getContext('2d');
+      cx.fillStyle = '#fff';
+      cx.fillRect(0, 0, w, h);
+      cx.drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      let out = '';
+      try { out = c.toDataURL('image/jpeg', 0.82); } catch (e) { out = ''; }
+      done(out);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); done(''); };
+    img.src = url;
+  }
+
+  function readAsDataUrl(file, done) {
+    const fr = new FileReader();
+    fr.onload = () => done(String(fr.result || ''));
+    fr.onerror = () => done('');
+    fr.readAsDataURL(file);
+  }
+
+  function acceptAttachment(file) {
+    if (!file) return;
+    const isImage = /^image\//.test(file.type || '') || /\.(png|jpe?g|gif|webp|bmp)$/i.test(file.name || '');
+    if (isImage && file.size > ATT_IMAGE_MAX) {
+      NBANA.toast('That photo is larger than 6 MB. Please pick a smaller one.', 'error');
+      return;
+    }
+    if (!isImage && file.size > ATT_FILE_MAX) {
+      NBANA.toast('Files must be 1.5 MB or smaller (this one is ' + fileSizeText(file.size) + ').', 'error');
+      return;
+    }
+    const finish = (dataUrl, size) => {
+      if (!dataUrl) { NBANA.toast('That file could not be read.', 'error'); return; }
+      pendingFile = {
+        kind: isImage ? 'image' : 'file',
+        name: file.name || (isImage ? 'Photo' : 'File'),
+        type: file.type || '',
+        size: size || file.size || 0,
+        data: dataUrl
+      };
+      paintPending();
+    };
+    if (isImage) {
+      shrinkImage(file, (out) => finish(out, Math.round((out.length || 0) * 0.75)));
+    } else {
+      readAsDataUrl(file, (out) => finish(out, file.size));
+    }
+  }
+
+  function paintPending() {
+    const box = $('chatPending');
+    if (!box) return;
+    if (!pendingFile) { box.hidden = true; box.innerHTML = ''; return; }
+    box.hidden = false;
+    box.innerHTML = '<div class="cp-card">' +
+      (pendingFile.kind === 'image'
+        ? '<img src="' + pendingFile.data + '" alt="">'
+        : '<span class="cp-ico">&#128196;</span>') +
+      '<span class="cp-meta"><strong>' + esc(pendingFile.name) + '</strong>' +
+      '<span>' + (pendingFile.kind === 'image' ? 'Photo' : 'File') + ' \u00b7 ' + fileSizeText(pendingFile.size) + ' \u00b7 ready to send</span></span>' +
+      '<button type="button" class="cp-x" id="chatPendingX" aria-label="Remove attachment">&times;</button>' +
+    '</div>';
+    const x = $('chatPendingX');
+    if (x) x.addEventListener('click', () => { pendingFile = null; paintPending(); });
+  }
+
+  /* One bubble's contents: optional photo or document chip, then the text */
+  function msgBodyHtml(m, showWho, who) {
+    let html = showWho ? '<span class="msg-who">' + esc(who) + '</span>' : '';
+    if (m && m.file) {
+      if (m.file.kind === 'image') {
+        html += '<img class="msg-img" src="' + m.file.data + '" alt="' + esc(m.file.name || 'Photo') + '" data-msgimg="1">';
+      } else {
+        html += '<a class="msg-file" href="' + m.file.data + '" download="' + esc(m.file.name || 'file') + '">' +
+          '<span class="mf-ico">&#128196;</span><span class="mf-body"><strong>' + esc(m.file.name || 'File') + '</strong>' +
+          '<span class="mf-size">' + fileSizeText(m.file.size) + ' \u00b7 tap to save</span></span></a>';
+      }
+    }
+    if (m && m.text) html += '<span class="msg-text">' + esc(m.text).replace(/\n/g, '<br>') + '</span>';
+    return html;
+  }
+
+  function msgDelBtn(threadKey, m) {
+    if (!m || !m.id) return '';
+    const mine = !isPrincipal && m.from === participantKey();
+    return '<button type="button" class="msg-del" data-msgdel="' + esc(threadKey) + '" data-msgid="' + esc(m.id) + '"' +
+      ' title="' + (mine ? 'Unsend this message' : 'Delete this message') + '" aria-label="' +
+      (mine ? 'Unsend this message' : 'Delete this message') + '">&#10005;</button>';
+  }
+
+  /* What the office keeps: everything, with the removed ones marked */
+  function msgFlagHtml(m, c) {
+    const nameFor = (k) => k === 'student' ? c.studentName : (k === 'teacher' ? c.teacherName : 'the school office');
+    if (m.unsent) return '<span class="msg-flag">Unsent by ' + esc(m.unsent.byName || nameFor(m.unsent.by)) + '</span>';
+    if (m.hidden) {
+      const who = Object.keys(m.hidden).map(nameFor).join(', ');
+      return '<span class="msg-flag">Deleted from the copy of ' + esc(who) + '</span>';
+    }
+    return '';
+  }
+
+  /* Message photos open in the portal's viewer, like feed photos do */
+  function openMsgImage(src, alt) {
+    const lb = $('lightbox'), stage = $('lbStage');
+    if (!lb || !stage) return;
+    lbPost = null;
+    stage.innerHTML = '<img src="' + src + '" alt="' + esc(alt || 'Photo') + '">';
+    lb.hidden = false;
+  }
+  document.addEventListener('click', (e) => {
+    const t = e.target && e.target.closest ? e.target.closest('[data-msgimg]') : null;
+    if (!t) return;
+    openMsgImage(t.getAttribute('src'), t.getAttribute('alt'));
+  });
+
   function unreadIn(t) {
     const k = participantKey();
     const since = t.read && t.read[k] ? new Date(t.read[k]).getTime() : 0;
-    return (t.msgs || []).filter(m => m.from !== k && new Date(m.at).getTime() > since).length;
+    return (t.msgs || []).filter(m => visibleForMe(m) && m.from !== k && new Date(m.at).getTime() > since).length;
+  }
+
+  /* ---------------- Message visibility ----------------
+     Nothing is ever erased: an unsent message is flagged (both sides stop
+     seeing it, the office keeps the record) and a deleted one is flagged for
+     the participant who deleted it. Monitoring ignores both flags. */
+  function visibleForMe(m) {
+    if (!m) return false;
+    if (m.unsent) return false;
+    const k = participantKey();
+    return !(m.hidden && m.hidden[k]);
+  }
+
+  function lastVisible(t) {
+    const list = (t && t.msgs) || [];
+    for (let i = list.length - 1; i >= 0; i--) {
+      const m = list[i];
+      /* The office reads every record, so only "unsent" drops the preview */
+      if (isPrincipal ? !m.unsent : visibleForMe(m)) return m;
+    }
+    return null;
+  }
+
+  function msgPreview(m) {
+    if (!m) return '';
+    if (m.text) return String(m.text).slice(0, 46);
+    if (m.file) return m.file.kind === 'image' ? 'Photo' : String(m.file.name || 'File');
+    return '';
+  }
+
+  function matchesQuery(q, text) {
+    return !q || String(text == null ? '' : text).toLowerCase().indexOf(q) > -1;
   }
 
   /* Every conversation the signed-in user may open */
@@ -3644,11 +3893,16 @@
   }
 
   function monitorThreads() {
-    return myContacts().filter(c => monitorInGrade(gradeOfStudent(c.studentId)));
+    const q = monQuery.trim().toLowerCase();
+    return myContacts()
+      .filter(c => monitorInGrade(gradeOfStudent(c.studentId)))
+      .filter(c => matchesQuery(q, c.studentName + ' ' + c.teacherName + ' ' + c.sub));
   }
 
   function renderMonitorConcernList() {
-    const list = monitorConcerns();
+    const q = concernQuery.trim().toLowerCase();
+    const list = monitorConcerns()
+      .filter(c => matchesQuery(q, c.studentName + ' ' + c.subject + ' ' + (c.category || '')));
     if (!list.some(c => c.id === activeConcernId)) activeConcernId = list.length ? list[0].id : null;
     $('monitorConcernList').innerHTML = list.length ? list.map(c => {
       const open = c.status !== 'resolved';
@@ -3661,8 +3915,9 @@
         '<span class="th-meta">' + esc(relTime(c.at)) +
         '<span class="pill ' + (open ? 'pill-red' : 'pill-green') + '">' + (open ? 'Open' : 'Done') + '</span></span>' +
       '</button>';
-    }).join('') : '<div class="empty-state"><span class="es-icon">&#9993;</span>No concerns' +
-      (monitorGrade === 'all' ? ' from students yet.' : ' in ' + esc(monitorGrade) + '.') + '</div>';
+    }).join('') : '<div class="empty-state"><span class="es-icon">&#9993;</span>' + (q
+      ? 'No concern matches your search.'
+      : 'No concerns' + (monitorGrade === 'all' ? ' from students yet.' : ' in ' + esc(monitorGrade) + '.')) + '</div>';
     return list;
   }
 
@@ -3675,18 +3930,17 @@
     lsSet(K.thread, activeThreadKey || '');
     $('monitorThreadList').innerHTML = list.length ? list.map(c => {
       const t = all[c.threadKey];
-      const msgs = (t && t.msgs) || [];
-      const last = msgs[msgs.length - 1];
+      const last = lastVisible(t);
       const here = monitorFocus === 'thread' && c.threadKey === activeThreadKey;
       return '<button type="button" class="thread' + (here ? ' active' : '') +
         '" data-thread="' + esc(c.threadKey) + '">' +
         avatarSpan('th-avatar', c.title, c.photo) +
         '<span class="th-body"><span class="th-name">' + esc(c.studentName) + '</span>' +
-        '<span class="th-last">' + esc(last ? last.text.slice(0, 44) : 'with ' + c.teacherName) + '</span></span>' +
+        '<span class="th-last">' + esc(last ? msgPreview(last) : 'with ' + c.teacherName) + '</span></span>' +
         '<span class="th-meta">' + (last ? esc(relTime(last.at)) : '') + '</span>' +
       '</button>';
     }).join('') : '<div class="empty-state"><span class="es-icon">&#128172;</span>No conversations' +
-      (monitorGrade === 'all' ? ' yet.' : ' in ' + esc(monitorGrade) + '.') + '</div>';
+      (monQuery.trim() ? ' match your search.' : (monitorGrade === 'all' ? ' yet.' : ' in ' + esc(monitorGrade) + '.')) + '</div>';
     return list;
   }
 
@@ -3747,18 +4001,60 @@
     const msgs = (cur && cur.msgs) || [];
     $('chatBody').innerHTML = msgs.length ? msgs.map(m => {
       const who = m.from === 'student' ? c.studentName : c.teacherName;
-      return '<div class="msg-row them">' +
+      return '<div class="msg-row them' + ((m.unsent || m.hidden) ? ' msg-gone' : '') + '">' +
         avatarSpan('msg-avatar', who, m.from === 'student' ? c.studentPhoto : c.teacherPhoto) +
-        '<div class="msg-bubble"><span class="msg-who">' + esc(who) + '</span>' +
-          esc(m.text).replace(/\n/g, '<br>') +
-          '<span class="msg-time">' + fmtStamp(m.at) + '</span></div></div>';
+        '<div class="msg-bubble">' + msgBodyHtml(m, true, who) +
+          '<span class="msg-time">' + fmtStamp(m.at) + '</span>' +
+          msgFlagHtml(m, c) +
+        '</div></div>';
     }).join('') : '<div class="chat-blank"><span>&#128075;</span><p>No messages in this conversation yet.</p></div>';
     $('chatForm').hidden = true;
     $('chatBody').scrollTop = $('chatBody').scrollHeight;
   }
 
+  /* ---------------- Monitoring is locked ----------------
+     The office's read of every conversation sits behind the staff secret
+     code. It stays unlocked for the rest of the session, and the padlock
+     button in the switch bar locks it again. */
+  function renderMonitorLocked() {
+    const sw = $('monitorSwitch');
+    if (sw) sw.hidden = true;
+    if ($('concernSide')) $('concernSide').hidden = true;
+    if ($('monitorSide')) $('monitorSide').hidden = true;
+    if ($('chatSide')) $('chatSide').hidden = true;
+    const panel = $('chatPanel');
+    if (panel) { panel.classList.remove('monitor-3'); panel.classList.add('monitor-2'); }
+    $('chatHead').innerHTML = '';
+    $('chatBody').innerHTML =
+      '<div class="chat-blank mon-lock"><span>&#128274;</span>' +
+      '<p>Message monitoring is locked.</p>' +
+      '<p class="ml-sub">Enter the school\u2019s staff secret code to read the conversations between students and teachers. Every record stays here, including messages a user unsent or deleted.</p>' +
+      '<form id="monForm"><input class="input" id="monCode" type="password" autocomplete="off" placeholder="Staff secret code"><button type="submit" class="btn-sm solid">Unlock monitoring</button></form>' +
+      '<p class="ml-err" id="monErr" hidden>That code is not valid. Ask the principal for the current one.</p></div>';
+    $('chatForm').hidden = true;
+    const f = $('monForm');
+    if (f) {
+      f.addEventListener('submit', (e) => {
+        e.preventDefault();
+        if (!NBANA.checkStaffCode($('monCode').value)) {
+          $('monCode').classList.add('invalid');
+          $('monErr').hidden = false;
+          return;
+        }
+        monUnlocked = true;
+        ssSet(MON_SS, '1');
+        NBANA.toast('Monitoring unlocked.', 'success');
+        renderMonitor();
+      });
+      const code = $('monCode');
+      if (code) code.focus();
+    }
+    refreshNotifs();
+  }
+
   function renderMonitor() {
     if (!isPrincipal) return;
+    if (!monUnlocked) { renderMonitorLocked(); return; }
 
     /* Two-state switch: Concerns (default, left) or Teacher <-> Student */
     const sw = $('monitorSwitch');
@@ -3767,6 +4063,8 @@
       sw.querySelectorAll('[data-monmode]').forEach(b =>
         b.classList.toggle('active', b.dataset.monmode === monitorMode));
     }
+    const lockBtn = $('btnMonLock');
+    if (lockBtn) lockBtn.hidden = false;
 
     const concernsMode = monitorMode === 'concerns';
     const panel = $('chatPanel');
@@ -3836,9 +4134,11 @@
   function renderMessages() {
     if (ALLOWED[role].indexOf('messages') === -1) return;
     if (isPrincipal) { renderMonitor(); return; }
-    const contacts = myContacts();
-    if (!contacts.some(c => c.threadKey === activeThreadKey)) {
-      activeThreadKey = contacts.length ? contacts[0].threadKey : null;
+    const q = msgQuery.trim().toLowerCase();
+    const contacts = myContacts().filter(c =>
+      matchesQuery(q, c.title + ' ' + c.sub + ' ' + c.studentName + ' ' + c.teacherName));
+    if (contacts.length && !contacts.some(c => c.threadKey === activeThreadKey)) {
+      activeThreadKey = contacts[0].threadKey;
     }
     lsSet(K.thread, activeThreadKey || '');
 
@@ -3860,18 +4160,18 @@
 
     $('threadList').innerHTML = contacts.length ? contacts.map(c => {
       const t = all[c.threadKey];
-      const msgs = (t && t.msgs) || [];
-      const last = msgs[msgs.length - 1];
+      const last = lastVisible(t);
       const unread = t ? unreadIn(t) : 0;
       return '<button type="button" class="thread' + (c.threadKey === activeThreadKey ? ' active' : '') +
         '" data-thread="' + esc(c.threadKey) + '">' +
         avatarSpan('th-avatar', c.title, c.photo) +
         '<span class="th-body"><span class="th-name">' + esc(c.title) + '</span>' +
-        '<span class="th-last">' + (last ? esc(last.text.slice(0, 46)) : 'No messages yet') + '</span></span>' +
+        '<span class="th-last">' + (last ? esc(msgPreview(last)) : 'No messages yet') + '</span></span>' +
         '<span class="th-meta">' + (last ? esc(relTime(last.at)) : '') +
         (unread ? '<span class="th-dot">' + unread + '</span>' : '') + '</span>' +
       '</button>';
-    }).join('') : '<div class="empty-state"><span class="es-icon">&#128172;</span>No conversations available.</div>';
+    }).join('') : '<div class="empty-state"><span class="es-icon">&#128172;</span>' +
+      (q ? 'No student matches your search.' : 'No conversations available.') + '</div>';
 
     const c = contacts.find(x => x.threadKey === activeThreadKey);
     if (!c) {
@@ -3888,16 +4188,15 @@
       '<div class="ch-who"><strong>' + esc(c.title) + '</strong><span class="ch-sub">' + esc(c.sub) + '</span></div>' +
       (isPrincipal ? '<span class="pill pill-navy">Monitoring \u00b7 read only</span>' : '');
 
-    const msgs = (cur && cur.msgs) || [];
+    const msgs = ((cur && cur.msgs) || []).filter(visibleForMe);
     $('chatBody').innerHTML = msgs.length ? msgs.map(m => {
       const mine = !isPrincipal && m.from === participantKey();
       const who = m.from === 'student' ? c.studentName : c.teacherName;
       return '<div class="msg-row ' + (mine ? 'me' : 'them') + '">' +
         (mine ? '' : avatarSpan('msg-avatar', who, m.from === 'student' ? c.studentPhoto : c.teacherPhoto)) +
-        '<div class="msg-bubble">' +
-          (isPrincipal ? '<span class="msg-who">' + esc(who) + '</span>' : '') +
-          esc(m.text).replace(/\n/g, '<br>') +
+        '<div class="msg-bubble">' + msgBodyHtml(m, isPrincipal, who) +
           '<span class="msg-time">' + fmtStamp(m.at) + '</span>' +
+          (isPrincipal ? '' : msgDelBtn(activeThreadKey, m)) +
         '</div></div>';
     }).join('') : '<div class="chat-blank"><span>&#128075;</span><p>' + (isPrincipal
       ? 'No messages in this conversation yet.'
@@ -3910,12 +4209,15 @@
       activeThreadKey = b.dataset.thread;
       renderMessages();
     }));
+    document.querySelectorAll('[data-msgdel]').forEach(b => b.addEventListener('click', () => {
+      deleteMessage(b.dataset.msgdel, b.dataset.msgid);
+    }));
     refreshNotifs();
   }
 
-  function sendChat(text) {
+  function sendChat(text, file) {
     const c = myContacts().find(x => x.threadKey === activeThreadKey);
-    if (!c) return;
+    if (!c) return false;
     const all = loadThreads();
     let t = all[activeThreadKey];
     if (!t) {
@@ -3923,11 +4225,40 @@
       all[activeThreadKey] = t;
     }
     t.msgs = t.msgs || [];
-    t.msgs.push({ id: newId('m'), from: isTeacher ? 'teacher' : 'student', text: text, at: nowStamp() });
+    const msg = { id: newId('m'), from: isTeacher ? 'teacher' : 'student', text: text || '', at: nowStamp() };
+    if (file) msg.file = file;
+    t.msgs.push(msg);
     t.read = t.read || {};
     t.read[participantKey()] = nowStamp();
     saveThreads(all);
     renderMessages();
+    return true;
+  }
+
+  /* Removing one message: your own is unsent for both sides, someone else's is
+     dropped from your copy only. The monitoring log keeps every record. */
+  function deleteMessage(threadKey, msgId) {
+    if (isPrincipal) return;
+    const all = loadThreads();
+    const t = all[threadKey];
+    const m = t && (t.msgs || []).find(x => x.id === msgId);
+    if (!m) return;
+    const mine = m.from === participantKey();
+    askConfirm({
+      title: mine ? 'Unsend this message?' : 'Delete this message?',
+      body: mine
+        ? 'It disappears for both of you. The school office keeps a record of every message in the monitoring log.'
+        : 'It is removed from your copy of this conversation only. The sender keeps theirs, and the school office keeps the record.',
+      okLabel: mine ? 'Unsend' : 'Delete',
+      danger: true,
+      onOk: () => {
+        if (mine) m.unsent = { by: participantKey(), byName: fullName, at: nowStamp() };
+        else { m.hidden = m.hidden || {}; m.hidden[participantKey()] = nowStamp(); }
+        saveThreads(all);
+        renderMessages();
+        NBANA.toast(mine ? 'Message unsent.' : 'Message deleted from your view.', 'success');
+      }
+    });
   }
 
   function messagesInit() {
@@ -3936,12 +4267,41 @@
     if (form) form.addEventListener('submit', (e) => {
       e.preventDefault();
       const text = $('chatInput').value.trim();
-      if (!text) return;
-      if (isPrincipal && monitorFocus === 'concern') replyToActiveConcern(text);
-      else if (!isPrincipal) sendChat(text);
+      const file = pendingFile;
+      if (!text && !file) return;
+      if (isPrincipal && monitorFocus === 'concern') {
+        /* The office reply has no attachment slot, so it says what came with it */
+        replyToActiveConcern((text || '') + (file ? (text ? ' ' : '') + '[sent ' + (file.kind === 'image' ? 'a photo' : file.name) + ']' : ''));
+      } else if (!isPrincipal) {
+        if (!sendChat(text, file)) return;
+      }
+      pendingFile = null;
+      paintPending();
       $('chatInput').value = '';
       $('chatInput').focus();
     });
+
+    /* Photos and files, the way a chat app does it: pick, see it ready, send */
+    if ($('chatPhoto')) $('chatPhoto').addEventListener('click', () => $('chatPhotoInput').click());
+    if ($('chatFile')) $('chatFile').addEventListener('click', () => $('chatFileInput').click());
+    if ($('chatPhotoInput')) $('chatPhotoInput').addEventListener('change', (e) => {
+      acceptAttachment(e.target.files && e.target.files[0]);
+      e.target.value = '';
+    });
+    if ($('chatFileInput')) $('chatFileInput').addEventListener('change', (e) => {
+      acceptAttachment(e.target.files && e.target.files[0]);
+      e.target.value = '';
+    });
+    paintPending();
+
+    /* Search boxes: type a name to jump straight to that student */
+    if ($('msgSearch')) {
+      $('msgSearch').addEventListener('input', (e) => { msgQuery = e.target.value; renderMessages(); });
+      /* A student has exactly one conversation — their teacher */
+      if (role === 'student') $('msgSearch').hidden = true;
+    }
+    if ($('monSearch')) $('monSearch').addEventListener('input', (e) => { monQuery = e.target.value; renderMonitor(); });
+    if ($('concSearch')) $('concSearch').addEventListener('input', (e) => { concernQuery = e.target.value; renderMonitor(); });
 
     /* Principal: two-state switch — Concerns (default) or Teacher <-> Student,
        with a grade selector that narrows the monitored conversations. */
@@ -3965,6 +4325,13 @@
           monitorFocus = null;
           renderMonitor();
         }));
+      /* Padlock: lock the monitoring view again when the principal steps away */
+      if ($('btnMonLock')) $('btnMonLock').addEventListener('click', () => {
+        monUnlocked = false;
+        ssSet(MON_SS, null);
+        NBANA.toast('Monitoring locked.', 'success');
+        renderMonitor();
+      });
     }
   }
 
@@ -4141,8 +4508,10 @@
   function syncBottomNav(name) {
     const nav = $('bottomNav');
     if (!nav) return;
-    const map = { news: 'news', dashboard: 'dashboard', messages: 'messages', approvals: 'alerts', contact: 'alerts', pwreq: 'more' };
-    const on = map[name] || 'more';
+    const map = { news: 'news', dashboard: 'dashboard', messages: 'messages', approvals: 'alerts', contact: 'alerts', pwreq: 'more', fees: 'fees', grades: 'grades' };
+    let on = map[name] || 'more';
+    /* The office's bar has no Tuition or Grades slot — fall back to More */
+    if (!nav.querySelector('[data-bnav="' + on + '"]')) on = 'more';
     nav.querySelectorAll('[data-bnav]').forEach((b) => b.classList.toggle('active', b.dataset.bnav === on));
   }
   function bottomNavInit() {

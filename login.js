@@ -56,14 +56,17 @@
     const pwOk = required('loginPw');
     if (!idOk || !pwOk) return;
 
+    /* The logo overlay covers the check, and stays up while the portal opens */
+    if (window.__nbanaLoad) window.__nbanaLoad.show();
     const res = NBANA.authenticate($('loginId').value, $('loginPw').value);
     if (!res.ok) {
+      if (window.__nbanaLoad) window.__nbanaLoad.hide();
       NBANA.toast(res.error, 'error');
       $('loginPw').classList.add('invalid');
       return;
     }
     NBANA.toast('Welcome back, ' + res.account.firstName + '!', 'success');
-    setTimeout(() => { window.location.href = NBANA.appUrl('portal.html'); }, 500);
+    setTimeout(() => { window.location.href = NBANA.appUrl('portal.html'); }, 700);
   });
 
   /* ---------------- Forgot password (school office assists) ----------------
@@ -183,7 +186,7 @@
 
   const STEP_NAMES = ['Personal', 'Address', 'Schooling', 'Login', 'Review'];
 
-  function renderStep() {
+  function renderStep(scroll) {
     steps.forEach(s => s.classList.toggle('active', Number(s.dataset.step) === current));
     $('wpStep').textContent = 'Step ' + current + ' of ' + TOTAL + ' \u00b7 ' + STEP_NAMES[current - 1];
     const pct = Math.round((current / TOTAL) * 100);
@@ -193,7 +196,10 @@
     btnNext.hidden = current === TOTAL;
     btnCreate.hidden = current !== TOTAL;
     if (current === TOTAL) buildReview();
-    document.querySelector('.auth-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    /* Only a real step change moves the page. The first paint must never scroll
+       the card under the sticky header — that page is exactly one window tall
+       and opens at the top. */
+    if (scroll) document.querySelector('.auth-card').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
   function validateStep(n) {
@@ -266,12 +272,12 @@
   btnNext.addEventListener('click', () => {
     if (!validateStep(current)) return;
     current++;
-    renderStep();
+    renderStep(true);
   });
 
   btnBack.addEventListener('click', () => {
     current--;
-    renderStep();
+    renderStep(true);
   });
 
   /* Review summary */
@@ -351,10 +357,11 @@
       profile.assignedGrade = $('f_grade').value;
     }
 
+    if (window.__nbanaLoad) window.__nbanaLoad.show();
     const account = NBANA.createAccount(profile, $('f_pw').value);
     NBANA.setSession(account.id);
     NBANA.toast(NBANA.roleLabel(acctRole) + ' account created. Welcome to the portal!', 'success');
-    setTimeout(() => { window.location.href = NBANA.appUrl('portal.html'); }, 800);
+    setTimeout(() => { window.location.href = NBANA.appUrl('portal.html'); }, 900);
   });
 
   /* Keep the student survey's school year in step with the school calendar */
