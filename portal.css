@@ -1588,10 +1588,9 @@ body.app-mode .portal-main { padding-bottom: 92px; }
 .splash-logo {
   width: 104px;
   height: 104px;
-  border-radius: 50%;
-  background: #fff;
-  padding: 6px;
-  box-shadow: 0 20px 46px rgba(0, 0, 0, 0.38);
+  object-fit: contain;
+  /* No background: the seal sits straight on the splash gradient */
+  filter: drop-shadow(0 14px 30px rgba(0, 0, 0, 0.42));
   animation: splashPop 0.6s ease;
 }
 
@@ -1626,14 +1625,13 @@ body.app-mode .auth-tabs,
 body.app-mode .demo-box,
 body.app-mode footer { display: none; }
 
-/* Every page keeps the header logo + app name. The sign-in page shows the
-   brand but no menu links; the portal itself uses the app bottom bar. */
-body.app-mode:not(.auth-page) .navbar { display: none; }
-body.app-mode.auth-page .navbar .nav-links,
-body.app-mode.auth-page .navbar .nav-auth,
-body.app-mode.auth-page .navbar .nav-toggle,
-body.app-mode.auth-page .navbar .theme-toggle { display: none; }
-body.app-mode.auth-page .navbar .logo { margin: 0 auto; }
+/* The app keeps the same header as the desktop build: logo, portal name and the
+   theme toggle. Menu links, the auth slot and the hamburger stay hidden because
+   the app navigates with the bottom bar. */
+body.app-mode .navbar { display: flex; }
+body.app-mode .navbar .nav-links,
+body.app-mode .navbar .nav-auth,
+body.app-mode .navbar .nav-toggle { display: none; }
 
 body.app-mode .auth-wrap { padding: 14px; }
 body.app-mode .auth-panel { width: 100%; }

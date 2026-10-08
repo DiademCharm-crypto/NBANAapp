@@ -448,5 +448,123 @@
       }, 900);
     })();
   </script>
+  <style id="bootRecoveryCss">
+    /* Load-recovery panel: carries its own styles so it still appears when a
+       stylesheet or script fails to arrive. */
+    #bootBanner {
+      position: fixed;
+      left: 0; right: 0; bottom: 0;
+      z-index: 10001;
+      display: none;
+      gap: 14px;
+      align-items: center;
+      flex-wrap: wrap;
+      justify-content: center;
+      padding: 14px 18px;
+      background: #0b1f3a;
+      color: #fff;
+      font-family: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
+      box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.35);
+    }
+    #bootBanner.show { display: flex; }
+    #bootBanner .bb-text { flex: 1 1 320px; min-width: 240px; font-size: 0.92rem; line-height: 1.45; }
+    #bootBanner .bb-title { display: block; font-weight: 800; margin-bottom: 2px; }
+    #bootBanner .bb-sub { opacity: 0.85; font-size: 0.86rem; }
+    #bootBanner button { border: none; border-radius: 10px; padding: 10px 18px; font: inherit; font-weight: 700; cursor: pointer; }
+    #bootRetry { background: #00a896; color: #fff; }
+    #bootRetry:disabled { opacity: 0.7; cursor: progress; }
+    #bootDismiss { background: rgba(255, 255, 255, 0.14); color: #fff; }
+  </style>
+
+  <script>
+    /* Load recovery: if a file fails, the connection drops, or the page never
+       finishes loading, offer a refresh that also clears cached copies. */
+    (function () {
+      var dismissed = false;
+      var banner = null;
+
+      function panel() {
+        if (banner) return banner;
+        banner = document.createElement('div');
+        banner.id = 'bootBanner';
+        banner.setAttribute('role', 'status');
+        banner.innerHTML =
+          '<span class="bb-text"><span class="bb-title">This page did not finish loading.</span>' +
+          '<span class="bb-sub" id="bootWhy">Check your connection, then press Refresh to load a fresh copy.</span></span>' +
+          '<button type="button" id="bootRetry">Refresh</button>' +
+          '<button type="button" id="bootDismiss">Dismiss</button>';
+        document.body.appendChild(banner);
+        banner.querySelector('#bootRetry').addEventListener('click', refresh);
+        banner.querySelector('#bootDismiss').addEventListener('click', function () {
+          banner.classList.remove('show');
+          dismissed = true;
+        });
+        return banner;
+      }
+
+      function show(why) {
+        if (dismissed) return;
+        var b = panel();
+        if (why) b.querySelector('#bootWhy').textContent = why;
+        b.classList.add('show');
+      }
+
+      /* Refresh drops cached copies first: a stale service worker is the most
+         common reason a page keeps showing an old or broken build. */
+      function refresh() {
+        var btn = document.getElementById('bootRetry');
+        if (btn) { btn.disabled = true; btn.textContent = 'Refreshing\u2026'; }
+        var steps = [];
+        try {
+          if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
+            steps.push(navigator.serviceWorker.getRegistrations().then(function (regs) {
+              return Promise.all(regs.map(function (r) { return r.unregister(); }));
+            }));
+          }
+        } catch (e) {}
+        try {
+          if (window.caches) {
+            steps.push(caches.keys().then(function (keys) {
+              return Promise.all(keys.map(function (k) { return caches.delete(k); }));
+            }));
+          }
+        } catch (e) {}
+        Promise.all(steps).catch(function () {}).then(function () { location.reload(); });
+      }
+
+      window.addEventListener('offline', function () {
+        show('You appear to be offline. Reconnect, then press Refresh.');
+      });
+      window.addEventListener('online', function () {
+        if (banner && banner.classList.contains('show')) {
+          show('You are back online \u2014 press Refresh to load the page.');
+        }
+      });
+
+      /* A script or stylesheet that never arrives leaves the page half-built */
+      window.addEventListener('error', function (e) {
+        var t = e.target || {};
+        if (t.tagName !== 'SCRIPT' && t.tagName !== 'LINK') return;
+        var name = String(t.src || t.href || '').split('/').pop() || t.tagName.toLowerCase();
+        show('A required file (' + name + ') could not be loaded, so the page may be incomplete.');
+      }, true);
+
+      /* Nothing arrived at all: the load event never fired */
+      var watchdog = setTimeout(function () {
+        show('The page is taking longer than expected to load.');
+      }, 12000);
+
+      window.addEventListener('load', function () {
+        clearTimeout(watchdog);
+        var broken = [];
+        Array.prototype.forEach.call(document.querySelectorAll('link[rel=stylesheet]'), function (l) {
+          if (!l.sheet) broken.push(String(l.href || '').split('/').pop());
+        });
+        if (broken.length) {
+          show('A stylesheet (' + broken.join(', ') + ') did not load, so the page may look wrong.');
+        }
+      });
+    })();
+  </script>
 </body>
 </html>
