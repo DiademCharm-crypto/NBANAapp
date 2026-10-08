@@ -1484,13 +1484,11 @@ body.app-mode .pc-load { display: none; }
 .pc-load-card { text-align: center; }
 
 .pc-load-logo {
-  width: 84px;
-  height: 84px;
-  border-radius: 50%;
-  background: #fff;
-  padding: 9px;
+  width: 92px;
+  height: 92px;
   object-fit: contain;
-  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.28);
+  /* No background: the school seal sits straight on the blurred backdrop */
+  filter: drop-shadow(0 12px 26px rgba(0, 0, 0, 0.42));
 }
 
 .pc-load-ring {
