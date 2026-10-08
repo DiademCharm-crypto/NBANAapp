@@ -591,6 +591,45 @@ const NBANA = (() => {
     el._timer = setTimeout(() => { el.className = 'toast'; }, 3200);
   }
 
+  /* ---------- Confirmation dialog ----------
+     Public pages do not load the portal stylesheet, so this one carries its own
+     small inline look. Used for signing out from the site header. */
+  function confirmDialog(opts) {
+    const old = document.getElementById('nbanaConfirm');
+    if (old) old.remove();
+    const wrap = document.createElement('div');
+    wrap.id = 'nbanaConfirm';
+    wrap.setAttribute('role', 'dialog');
+    wrap.setAttribute('aria-modal', 'true');
+    wrap.style.cssText = 'position:fixed;inset:0;z-index:4000;display:grid;place-items:center;padding:20px';
+    wrap.innerHTML =
+      '<div data-cf-back style="position:absolute;inset:0;background:rgba(5,10,25,.55)"></div>' +
+      '<div style="position:relative;width:min(400px,100%);background:#ffffff;color:#1f2937;border-radius:14px;' +
+        'padding:22px;box-shadow:0 20px 45px rgba(0,0,0,.25)">' +
+        '<h4 style="margin:0 0 8px;font-size:1.05rem"></h4>' +
+        '<p style="margin:0;font-size:.88rem;line-height:1.5;color:#4b5563"></p>' +
+        '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:18px">' +
+          '<button type="button" data-cf-cancel style="padding:8px 14px;border-radius:8px;border:1px solid #d1d5db;' +
+            'background:#ffffff;font:inherit;font-weight:600;color:#374151;cursor:pointer">Cancel</button>' +
+          '<button type="button" data-cf-ok style="padding:8px 14px;border-radius:8px;border:none;background:#0d2c54;' +
+            'color:#ffffff;font:inherit;font-weight:700;cursor:pointer"></button>' +
+        '</div>' +
+      '</div>';
+    wrap.querySelector('h4').textContent = opts.title || 'Are you sure?';
+    wrap.querySelector('p').textContent = opts.body || '';
+    const ok = wrap.querySelector('[data-cf-ok]');
+    ok.textContent = opts.okLabel || 'Continue';
+    const close = () => wrap.remove();
+    ok.addEventListener('click', () => { close(); if (opts.onOk) opts.onOk(); });
+    wrap.querySelector('[data-cf-cancel]').addEventListener('click', close);
+    wrap.querySelector('[data-cf-back]').addEventListener('click', close);
+    document.addEventListener('keydown', function onEsc(e) {
+      if (e.key === 'Escape') { close(); document.removeEventListener('keydown', onEsc); }
+    });
+    document.body.appendChild(wrap);
+    ok.focus();
+  }
+
   /* ---------- Navbar (auth slot + hamburger + theme toggle) ---------- */
   function enhanceNav() {
     const nav = document.querySelector('.navbar') || document.querySelector('.top-bar');
@@ -638,9 +677,16 @@ const NBANA = (() => {
         : '<a href="login.html" class="nav-btn nav-btn-solid">Sign In</a>';
       const out = slot.querySelector('[data-logout]');
       if (out) out.addEventListener('click', () => {
-        store.del(KEYS.session);
-        toast('You have been signed out.');
-        setTimeout(() => { window.location.href = appUrl('login.html'); }, 400);
+        confirmDialog({
+          title: 'Log out?',
+          body: 'You will need your email address and password to sign in again.',
+          okLabel: 'Log out',
+          onOk: () => {
+            store.del(KEYS.session);
+            toast('You have been signed out.');
+            setTimeout(() => { window.location.href = appUrl('login.html'); }, 400);
+          }
+        });
       });
     }
 

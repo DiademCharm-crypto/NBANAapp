@@ -49,7 +49,7 @@
       </div>
 
       <nav class="side-nav" id="sideNav">
-        <button type="button" class="active" data-view="dashboard"><span class="s-icon">&#8962;</span>Dashboard</button>
+        <button type="button" class="active" data-view="dashboard"><span class="s-icon">&#9638;</span>Dashboard</button>
         <button type="button" data-view="students" hidden><span class="s-icon">&#9679;</span>Students</button>
         <button type="button" data-view="approvals" hidden><span class="s-icon">&#9878;</span>Approvals<span class="s-count" id="navApprCount" hidden>0</span></button>
         <button type="button" data-view="fees"><span class="s-icon">&#8369;</span>Tuition &amp; Fees</button>
@@ -444,15 +444,32 @@
 
       <!-- ============ MESSAGES (student <-> teacher, monitored by the admin) ============ -->
       <section class="view" id="view-messages">
-        <div class="panel chat-panel">
-          <div class="chat-side">
+        <div class="panel chat-panel" id="chatPanel">
+          <!-- Principal: student concerns come first (left side) -->
+          <div class="chat-side" id="concernSide" hidden>
+            <div class="chat-side-head">
+              <h3>Concerns</h3>
+              <span class="sub" id="concernSideSub">What students sent to the school office</span>
+            </div>
+            <div class="thread-list" id="monitorConcernList"></div>
+          </div>
+          <!-- Principal: which student is messaging which teacher -->
+          <div class="chat-side" id="monitorSide" hidden>
+            <div class="chat-side-head">
+              <h3>Teacher &harr; Student</h3>
+              <span class="sub" id="monitorSideSub">Read-only monitoring</span>
+              <div class="mon-grade">
+                <label for="monGradeSel">Student grade</label>
+                <select id="monGradeSel" class="input input-sm"></select>
+              </div>
+            </div>
+            <div class="thread-list" id="monitorThreadList"></div>
+          </div>
+          <!-- Everyone else: their own conversations -->
+          <div class="chat-side" id="chatSide">
             <div class="chat-side-head">
               <h3 id="chatSideTitle">Conversations</h3>
               <span class="sub" id="chatSideSub"></span>
-              <div class="monitor-switch" id="monitorSwitch" hidden>
-                <button type="button" class="ms-btn active" data-mode="threads">Teacher &harr; Student</button>
-                <button type="button" class="ms-btn" data-mode="concerns">Concerns</button>
-              </div>
             </div>
             <div class="thread-list" id="threadList"></div>
           </div>
@@ -760,7 +777,7 @@
 
   <nav id="bottomNav">
     <button type="button" data-bnav="news"><span class="bn-ico">&#128240;</span>Feed</button>
-    <button type="button" data-bnav="dashboard"><span class="bn-ico">&#8962;</span>Dashboard</button>
+    <button type="button" data-bnav="dashboard"><span class="bn-ico">&#9638;</span>Dashboard</button>
     <button type="button" data-bnav="messages"><span class="bn-ico">&#128172;</span>Messages</button>
     <button type="button" data-bnav="alerts"><span class="bn-ico">&#128276;</span>Alerts</button>
     <button type="button" data-bnav="more"><span class="bn-ico">&#9776;</span>More</button>
@@ -782,6 +799,19 @@
       <a class="dw-logout dw-getapp" href="app.html">&#11015; Get the Android app</a>
       <button type="button" class="dw-logout" id="dwLogout">Log out</button>
     </aside>
+  </div>
+
+  <!-- Confirmation dialog: deleting a post or signing out asks first -->
+  <div id="dlgWrap" hidden>
+    <div class="dlg-back" data-dlg-cancel></div>
+    <div class="dlg-card" role="dialog" aria-modal="true" aria-labelledby="dlgTitle">
+      <h4 id="dlgTitle">Are you sure?</h4>
+      <p id="dlgBody"></p>
+      <div class="dlg-actions">
+        <button type="button" class="btn-sm" id="dlgCancel">Cancel</button>
+        <button type="button" class="btn-sm danger" id="dlgOk">Delete</button>
+      </div>
+    </div>
   </div>
 
   <div id="lightbox" hidden>

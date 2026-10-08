@@ -37,7 +37,7 @@
     /* Where the user was last time, so a refresh keeps the same page open */
     view: 'nbana.view.v1',
     thread: 'nbana.thread.v1',
-    chatMode: 'nbana.chatmode.v1'
+    monGrade: 'nbana.mongrade.v1'
   };
 
   function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
@@ -168,12 +168,61 @@
     }
   });
 
+  /* ---------------- Confirmation dialog ----------------
+     Nothing destructive happens on a single tap: deleting a post and signing
+     out both ask first. */
+  let dlgHandler = null;
+
+  function closeDialog() {
+    const w = $('dlgWrap');
+    if (w) w.hidden = true;
+    dlgHandler = null;
+  }
+
+  function askConfirm(opts) {
+    const w = $('dlgWrap');
+    if (!w) {                        /* no markup on the page: fall back to the browser prompt */
+      if (window.confirm([opts.title, opts.body].filter(Boolean).join('\n\n'))) opts.onOk();
+      return;
+    }
+    $('dlgTitle').textContent = opts.title || 'Are you sure?';
+    $('dlgBody').textContent = opts.body || '';
+    const ok = $('dlgOk');
+    ok.textContent = opts.okLabel || 'Delete';
+    ok.className = 'btn-sm ' + (opts.danger === false ? 'solid' : 'danger');
+    dlgHandler = opts.onOk || null;
+    w.hidden = false;
+    ok.focus();
+  }
+
+  function dialogInit() {
+    if (!$('dlgWrap')) return;
+    $('dlgOk').addEventListener('click', () => {
+      const run = dlgHandler;
+      closeDialog();
+      if (run) run();
+    });
+    $('dlgCancel').addEventListener('click', closeDialog);
+    document.querySelectorAll('[data-dlg-cancel]').forEach((el) => el.addEventListener('click', closeDialog));
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && $('dlgWrap') && !$('dlgWrap').hidden) closeDialog();
+  });
+
   /* Logout */
-  $('logoutBtn').addEventListener('click', () => {
+  function doLogout() {
     NBANA.store.del(NBANA.KEYS.session);
     NBANA.toast('You have been signed out.');
     setTimeout(() => { window.location.href = NBANA.appUrl('login.html'); }, 400);
-  });
+  }
+  $('logoutBtn').addEventListener('click', () => askConfirm({
+    title: 'Log out of the portal?',
+    body: 'You will need your email address and password to sign in again.',
+    okLabel: 'Log out',
+    danger: false,
+    onOk: doLogout
+  }));
 
   /* ---------------- Header chips ---------------- */
   $('chipDate').textContent = new Date().toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -633,17 +682,29 @@
   document.addEventListener('click', (e) => {
     const del = e.target && e.target.closest ? e.target.closest('[data-del-post]') : null;
     if (!del) return;
-    const gone = loadFeed().find(x => x.id === del.dataset.delPost);
-    if (gone && gone.media) gone.media.forEach((m) => {
-      mediaDelete(m.key);
-      if (m.posterKey) mediaDelete(m.posterKey);
+    const id = del.dataset.delPost;
+    const post = loadFeed().find(x => x.id === id) || null;
+    const what = post
+      ? ('\u201c' + String(post.title || post.body || 'This post').replace(/\s+/g, ' ').trim().slice(0, 70) + '\u201d')
+      : 'This post';
+    askConfirm({
+      title: 'Delete this post?',
+      body: what + ' will be removed from the feed for everyone. This cannot be undone.',
+      okLabel: 'Delete post',
+      onOk: () => {
+        const gone = loadFeed().find(x => x.id === id);
+        if (gone && gone.media) gone.media.forEach((m) => {
+          mediaDelete(m.key);
+          if (m.posterKey) mediaDelete(m.posterKey);
+        });
+        saveFeed(loadFeed().filter(x => x.id !== id));
+        renderFeed();
+        renderApprovals();
+        refreshNotifs();
+        if (typeof renderAdminDash === 'function') renderAdminDash();
+        NBANA.toast('Post deleted.', 'success');
+      }
     });
-    saveFeed(loadFeed().filter(x => x.id !== del.dataset.delPost));
-    renderFeed();
-    renderApprovals();
-    refreshNotifs();
-    if (typeof renderAdminDash === 'function') renderAdminDash();
-    NBANA.toast('Post deleted.', 'success');
   });
 
   /* The dashboard carries official school announcements only \u2014 teacher and class
@@ -2529,14 +2590,21 @@
 
   function facEditorRow(f) {
     const isClassTeacher = f.group === 'teacher';
-    return '<div class="fac-edit-row" data-id="' + esc(f.id) + '" data-group="' + (isClassTeacher ? 'teacher' : 'admin') + '">' +
+    return '<div class="fac-edit-row" data-id="' + esc(f.id) + '" data-group="' + (isClassTeacher ? 'teacher' : 'admin') +
+      '" data-photo="' + esc(f.photo || '') + '">' +
       '<input class="input input-sm" data-f="name" placeholder="Full name" value="' + esc(f.name || '') + '">' +
       '<input class="input input-sm" data-f="role" placeholder="Role / position" value="' + esc(f.role || '') + '">' +
       (isClassTeacher
         ? '<select class="input input-sm" data-f="grade"><option value="">No grade</option>' +
           GRADES.map(g => '<option' + (g === f.grade ? ' selected' : '') + '>' + esc(g) + '</option>').join('') + '</select>'
         : '<span class="fac-edit-fill"></span>') +
-      '<input class="input input-sm fac-photo-input" data-f="photo" placeholder="teacher1.jpg" value="' + esc(f.photo || '') + '">' +
+      '<span class="fac-photo-edit">' +
+        '<span class="fac-thumb" data-thumb>' + (f.photo ? '<img src="' + esc(f.photo) + '" alt="">' : '&#128247;') + '</span>' +
+        '<span class="fac-photo-tools">' +
+          '<span class="btn-sm fac-upload">Add photo<input type="file" accept="image/*" data-f="photofile"></span>' +
+          '<button type="button" class="btn-sm" data-facphotoclear="1">Clear photo</button>' +
+        '</span>' +
+      '</span>' +
       '<button type="button" class="btn-sm danger" data-facdel="' + esc(f.id) + '">Remove</button>' +
       '</div>';
   }
@@ -2567,7 +2635,7 @@
           name: val('name'),
           role: val('role'),
           grade: group === 'teacher' ? val('grade') : undefined,
-          photo: val('photo')
+          photo: r.dataset.photo || ''
         });
       });
     });
@@ -2620,7 +2688,33 @@
     if ($('btnFacAddAdmin')) $('btnFacAddAdmin').addEventListener('click', () => addMember('admin'));
     if ($('btnFacAddTeacher')) $('btnFacAddTeacher').addEventListener('click', () => addMember('teacher'));
 
+    /* A photo is added right here: the file is squared off and shrunk on this
+       device, then travels with the listing so every device sees the same face. */
+    if ($('facEditor')) $('facEditor').addEventListener('change', (e) => {
+      const input = e.target && e.target.closest ? e.target.closest('[data-f="photofile"]') : null;
+      if (!input || !input.files || !input.files[0]) return;
+      const row = input.closest('.fac-edit-row');
+      readImage(input.files[0], (dataUrl) => {
+        if (!dataUrl || !row) return;
+        row.dataset.photo = dataUrl;
+        const thumb = row.querySelector('[data-thumb]');
+        if (thumb) thumb.innerHTML = '<img src="' + dataUrl + '" alt="">';
+        NBANA.toast('Photo added \u2014 press Save faculty to keep it.', 'success');
+      }, 360);
+      input.value = '';
+    });
+
     if ($('facEditor')) $('facEditor').addEventListener('click', (e) => {
+      const clr = e.target.closest('[data-facphotoclear]');
+      if (clr && facDraft) {
+        const row = clr.closest('.fac-edit-row');
+        if (row) {
+          row.dataset.photo = '';
+          const thumb = row.querySelector('[data-thumb]');
+          if (thumb) thumb.innerHTML = '&#128247;';
+        }
+        return;
+      }
       const btn = e.target.closest('[data-facdel]');
       if (!btn || !facDraft) return;
       facDraft = facCollect().filter(f => f.id !== btn.dataset.facdel);
@@ -3247,8 +3341,11 @@
      ============================================================ */
   /* Restored from the last visit so a refresh keeps the same conversation open */
   let activeThreadKey = lsGet(K.thread) || null;
-  let adminChatMode = lsGet(K.chatMode) === 'concerns' ? 'concerns' : 'threads';
   let activeConcernId = null;
+  /* Principal monitoring: which row is open in the reader pane, and the grade
+     filter that narrows both lists ('all' shows every grade). */
+  let monitorFocus = null;
+  let monitorGrade = lsGet(K.monGrade) || 'all';
 
   function loadThreads() { return NBANA.store.get(K.threads, {}) || {}; }
   function saveThreads(t) { NBANA.store.set(K.threads, t); }
@@ -3325,26 +3422,40 @@
     }] : [];
   }
 
-  /* Principal: chat-style reader for student concerns (same panel, other switch position) */
-  function renderConcernChat() {
-    const list = loadConcerns().slice().sort((a, b) => new Date(b.at) - new Date(a.at));
+  /* ---------------- Principal: message monitoring ----------------
+     Concerns keep the left side, teacher \u2194 student conversations take the
+     right, and one grade selector narrows both lists. Opening a row reads it in
+     the pane on the far right; a concern can be answered from there. */
+  function gradeOfStudent(id) {
+    const a = id ? NBANA.findAccount(id) : null;
+    return (a && a.student && a.student.gradeLevel) || '';
+  }
+
+  function monitorInGrade(grade) {
+    return monitorGrade === 'all' || grade === monitorGrade;
+  }
+
+  function monitorGradeOfConcern(c) {
+    return gradeOfStudent(c.studentId) || String(c.grade || '').split(' \u00b7 ')[0];
+  }
+
+  function monitorConcerns() {
+    return loadConcerns()
+      .filter(c => monitorInGrade(monitorGradeOfConcern(c)))
+      .sort((a, b) => new Date(b.at) - new Date(a.at));
+  }
+
+  function monitorThreads() {
+    return myContacts().filter(c => monitorInGrade(gradeOfStudent(c.studentId)));
+  }
+
+  function renderMonitorConcernList() {
+    const list = monitorConcerns();
     if (!list.some(c => c.id === activeConcernId)) activeConcernId = list.length ? list[0].id : null;
-    const cur = list.find(c => c.id === activeConcernId) || null;
-
-    if (cur && !cur.seenByAdmin) {
-      cur.seenByAdmin = true;
-      const all = loadConcerns();
-      const i = all.findIndex(x => x.id === cur.id);
-      if (i > -1) { all[i] = cur; saveConcerns(all); }
-      refreshNotifs();
-    }
-
-    $('chatSideTitle').textContent = 'Student concerns';
-    $('chatSideSub').textContent = 'Switch back for teacher \u2194 student messages';
-
-    $('threadList').innerHTML = list.length ? list.map(c => {
+    $('monitorConcernList').innerHTML = list.length ? list.map(c => {
       const open = c.status !== 'resolved';
-      return '<button type="button" class="thread' + (c.id === activeConcernId ? ' active' : '') +
+      const here = monitorFocus === 'concern' && c.id === activeConcernId;
+      return '<button type="button" class="thread' + (here ? ' active' : '') +
         '" data-concern="' + esc(c.id) + '">' +
         avatarSpan('th-avatar', c.studentName, photoOf(c.studentId)) +
         '<span class="th-body"><span class="th-name">' + esc(c.studentName) + '</span>' +
@@ -3352,7 +3463,43 @@
         '<span class="th-meta">' + esc(relTime(c.at)) +
         '<span class="pill ' + (open ? 'pill-red' : 'pill-green') + '">' + (open ? 'Open' : 'Done') + '</span></span>' +
       '</button>';
-    }).join('') : '<div class="empty-state"><span class="es-icon">&#9993;</span>No student concerns yet.</div>';
+    }).join('') : '<div class="empty-state"><span class="es-icon">&#9993;</span>No concerns' +
+      (monitorGrade === 'all' ? ' from students yet.' : ' in ' + esc(monitorGrade) + '.') + '</div>';
+    return list;
+  }
+
+  function renderMonitorThreadList() {
+    const all = loadThreads();
+    const list = monitorThreads();
+    if (!list.some(c => c.threadKey === activeThreadKey)) {
+      activeThreadKey = list.length ? list[0].threadKey : null;
+    }
+    lsSet(K.thread, activeThreadKey || '');
+    $('monitorThreadList').innerHTML = list.length ? list.map(c => {
+      const t = all[c.threadKey];
+      const msgs = (t && t.msgs) || [];
+      const last = msgs[msgs.length - 1];
+      const here = monitorFocus === 'thread' && c.threadKey === activeThreadKey;
+      return '<button type="button" class="thread' + (here ? ' active' : '') +
+        '" data-thread="' + esc(c.threadKey) + '">' +
+        avatarSpan('th-avatar', c.title, c.photo) +
+        '<span class="th-body"><span class="th-name">' + esc(c.studentName) + '</span>' +
+        '<span class="th-last">' + esc(last ? last.text.slice(0, 44) : 'with ' + c.teacherName) + '</span></span>' +
+        '<span class="th-meta">' + (last ? esc(relTime(last.at)) : '') + '</span>' +
+      '</button>';
+    }).join('') : '<div class="empty-state"><span class="es-icon">&#128172;</span>No conversations' +
+      (monitorGrade === 'all' ? ' yet.' : ' in ' + esc(monitorGrade) + '.') + '</div>';
+    return list;
+  }
+
+  function monitorReaderConcern(cur) {
+    if (cur && !cur.seenByAdmin) {
+      cur.seenByAdmin = true;
+      const all = loadConcerns();
+      const i = all.findIndex(x => x.id === cur.id);
+      if (i > -1) { all[i] = cur; saveConcerns(all); }
+      refreshNotifs();
+    }
 
     if (!cur) {
       $('chatHead').innerHTML = '';
@@ -3384,9 +3531,82 @@
     $('chatInput').placeholder = 'Reply to ' + (cur.studentName || 'the student') + '...';
     $('chatBody').scrollTop = $('chatBody').scrollHeight;
 
+    refreshNotifs();
+  }
+
+  /* Right pane for a monitored conversation: read-only, who said what */
+  function monitorReaderThread(c, cur) {
+    if (!c) {
+      $('chatHead').innerHTML = '';
+      $('chatBody').innerHTML = '<div class="chat-blank"><span>&#128172;</span><p>Pick a concern or a conversation to read it.</p></div>';
+      $('chatForm').hidden = true;
+      return;
+    }
+    $('chatHead').innerHTML =
+      avatarSpan('th-avatar big', c.title, c.photo) +
+      '<div class="ch-who"><strong>' + esc(c.studentName) + '</strong><span class="ch-sub">' + esc(c.sub) + '</span></div>' +
+      '<span class="pill pill-navy">Monitoring \u00b7 read only</span>';
+    const msgs = (cur && cur.msgs) || [];
+    $('chatBody').innerHTML = msgs.length ? msgs.map(m => {
+      const who = m.from === 'student' ? c.studentName : c.teacherName;
+      return '<div class="msg-row them">' +
+        avatarSpan('msg-avatar', who, m.from === 'student' ? c.studentPhoto : c.teacherPhoto) +
+        '<div class="msg-bubble"><span class="msg-who">' + esc(who) + '</span>' +
+          esc(m.text).replace(/\n/g, '<br>') +
+          '<span class="msg-time">' + fmtStamp(m.at) + '</span></div></div>';
+    }).join('') : '<div class="chat-blank"><span>&#128075;</span><p>No messages in this conversation yet.</p></div>';
+    $('chatForm').hidden = true;
+    $('chatBody').scrollTop = $('chatBody').scrollHeight;
+  }
+
+  function renderMonitor() {
+    if ($('chatPanel')) $('chatPanel').classList.add('monitor-3');
+    if ($('chatSide')) $('chatSide').hidden = true;
+    if ($('concernSide')) $('concernSide').hidden = false;
+    if ($('monitorSide')) $('monitorSide').hidden = false;
+
+    const concerns = renderMonitorConcernList();
+    const threads = renderMonitorThreadList();
+
+    /* Concerns come first: open the newest one until the admin picks something */
+    if (monitorFocus !== 'concern' && monitorFocus !== 'thread') {
+      monitorFocus = concerns.length ? 'concern' : 'thread';
+    }
+    if (monitorFocus === 'concern' && !concerns.length && threads.length) monitorFocus = 'thread';
+    if (monitorFocus === 'thread' && !threads.length && concerns.length) monitorFocus = 'concern';
+
+    if ($('concernSideSub')) {
+      $('concernSideSub').textContent = concerns.length + ' shown \u00b7 ' +
+        loadConcerns().filter(c => c.status !== 'resolved').length + ' still open';
+    }
+    if ($('monitorSideSub')) {
+      $('monitorSideSub').textContent = threads.length + ' conversation' + (threads.length === 1 ? '' : 's') +
+        (monitorGrade === 'all' ? ' in the school' : ' in ' + monitorGrade) + ' \u00b7 read only';
+    }
+
+    if (monitorFocus === 'concern') {
+      monitorReaderConcern(concerns.find(c => c.id === activeConcernId) || null);
+    } else {
+      const all = loadThreads();
+      const c = threads.find(x => x.threadKey === activeThreadKey) || null;
+      const cur = c ? all[c.threadKey] : null;
+      if (cur) {
+        cur.read = cur.read || {};
+        cur.read[participantKey()] = nowStamp();
+        saveThreads(all);
+      }
+      monitorReaderThread(c, cur);
+    }
+
     document.querySelectorAll('[data-concern]').forEach(b => b.addEventListener('click', () => {
       activeConcernId = b.dataset.concern;
-      renderConcernChat();
+      monitorFocus = 'concern';
+      renderMonitor();
+    }));
+    document.querySelectorAll('[data-thread]').forEach(b => b.addEventListener('click', () => {
+      activeThreadKey = b.dataset.thread;
+      monitorFocus = 'thread';
+      renderMonitor();
     }));
     refreshNotifs();
   }
@@ -3399,14 +3619,15 @@
     c.replies.push({ by: 'admin', byName: fullName, text: text, at: nowStamp() });
     c.status = 'open';
     saveConcerns(list);
-    renderConcernChat();
+    monitorFocus = 'concern';
+    renderMonitor();
     renderConcerns();
     NBANA.toast('Reply sent to ' + (c.studentName || 'the student') + '.', 'success');
   }
 
   function renderMessages() {
     if (ALLOWED[role].indexOf('messages') === -1) return;
-    if (isPrincipal && adminChatMode === 'concerns') { renderConcernChat(); return; }
+    if (isPrincipal) { renderMonitor(); return; }
     const contacts = myContacts();
     if (!contacts.some(c => c.threadKey === activeThreadKey)) {
       activeThreadKey = contacts.length ? contacts[0].threadKey : null;
@@ -3505,26 +3726,29 @@
       e.preventDefault();
       const text = $('chatInput').value.trim();
       if (!text) return;
-      if (isPrincipal && adminChatMode === 'concerns') replyToActiveConcern(text);
-      else sendChat(text);
+      if (isPrincipal && monitorFocus === 'concern') replyToActiveConcern(text);
+      else if (!isPrincipal) sendChat(text);
       $('chatInput').value = '';
       $('chatInput').focus();
     });
 
-    /* The principal can switch the Messages view between monitoring and concerns */
-    if (isPrincipal && $('monitorSwitch')) {
-      $('monitorSwitch').hidden = false;
-      /* the switch remembers its position, so paint it from the restored mode */
-      $('monitorSwitch').querySelectorAll('.ms-btn').forEach(b => {
-        b.classList.toggle('active', b.dataset.mode === adminChatMode);
+    /* Principal: concerns keep the left side, teacher \u2194 student the right,
+       and one grade selector narrows both lists. */
+    if (isPrincipal && $('monGradeSel')) {
+      $('monGradeSel').innerHTML = '<option value="all">All grades</option>' +
+        GRADES.map(g => '<option value="' + esc(g) + '">' + esc(g) + '</option>').join('');
+      monitorGrade = GRADES.indexOf(monitorGrade) > -1 ? monitorGrade : 'all';
+      $('monGradeSel').value = monitorGrade;
+      $('monGradeSel').addEventListener('change', () => {
+        monitorGrade = $('monGradeSel').value;
+        lsSet(K.monGrade, monitorGrade);
+        monitorFocus = null;                      /* let the first row of the new list open */
+        renderMonitor();
       });
-      $('monitorSwitch').querySelectorAll('.ms-btn').forEach(b => b.addEventListener('click', () => {
-        adminChatMode = b.dataset.mode;
-        lsSet(K.chatMode, adminChatMode);
-        $('monitorSwitch').querySelectorAll('.ms-btn').forEach(x => x.classList.toggle('active', x === b));
-        $('chatInput').placeholder = 'Aa';
-        renderMessages();
-      }));
+      if ($('chatPanel')) $('chatPanel').classList.add('monitor-3');
+      if ($('chatSide')) $('chatSide').hidden = true;
+      if ($('concernSide')) $('concernSide').hidden = false;
+      if ($('monitorSide')) $('monitorSide').hidden = false;
     }
   }
 
@@ -3654,7 +3878,16 @@
     $('dwLinks').querySelectorAll('[data-dw]').forEach((b) =>
       b.addEventListener('click', () => { closeDrawer(); setView(b.dataset.dw); }));
     $('dwEditBtn').addEventListener('click', () => { closeDrawer(); setView('profile'); });
-    $('dwLogout').addEventListener('click', () => NBANA.logout());
+    $('dwLogout').addEventListener('click', () => {
+      closeDrawer();
+      askConfirm({
+        title: 'Log out of the portal?',
+        body: 'You will need your email address and password to sign in again.',
+        okLabel: 'Log out',
+        danger: false,
+        onOk: doLogout
+      });
+    });
     const inst = $('dwInstall');
     if (inst) {
       if (window.__nbanaInstall) inst.hidden = false;
@@ -3707,6 +3940,7 @@
   messagesInit();
   concernsInit();
   profileInit();
+  dialogInit();
   renderFaculty();
   facultyInit();
 
