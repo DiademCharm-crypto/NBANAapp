@@ -29,6 +29,54 @@
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
   <link rel="stylesheet" href="style.css">
+  <!-- The loading popup carries its own critical styles so it can never fall
+       out of sync with its markup: a device that serves an older cached
+       stylesheet would otherwise flash a full-size logo over the page. -->
+  <style>
+    #pcLoad {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(11, 31, 58, 0.55);
+      -webkit-backdrop-filter: blur(10px);
+      backdrop-filter: blur(10px);
+      transition: opacity 0.4s ease, visibility 0.4s ease;
+    }
+    #pcLoad.gone { opacity: 0; visibility: hidden; }
+    #pcLoad .pc-load-card { text-align: center; }
+    #pcLoad .pc-load-logo {
+      width: 92px;
+      height: 92px;
+      object-fit: contain;
+      filter: drop-shadow(0 12px 26px rgba(0, 0, 0, 0.42));
+    }
+    #pcLoad .pc-load-ring {
+      display: block;
+      width: 34px;
+      height: 34px;
+      margin: 20px auto 0;
+      border-radius: 50%;
+      border: 3px solid rgba(255, 255, 255, 0.25);
+      border-top-color: #00a896;
+      animation: pc-load-spin 0.8s linear infinite;
+    }
+    #pcLoad .pc-load-text {
+      display: block;
+      margin-top: 12px;
+      color: #fff;
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+    }
+    /* Phones and the installed app already open with the launch splash */
+    body.app-mode #pcLoad { display: none; }
+    @media (max-width: 860px) { #pcLoad { display: none; } }
+    @keyframes pc-load-spin { to { transform: rotate(360deg); } }
+  </style>
 </head>
 <body>
 

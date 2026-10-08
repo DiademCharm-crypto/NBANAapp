@@ -1,6 +1,6 @@
 /* NBANA Portal service worker — makes the installed app open instantly and
    keep working on a weak connection. Bump the cache name to push fresh files. */
-const CACHE = 'nbana-v15';
+const CACHE = 'nbana-v16';
 const CORE = [
   'portal.html', 'index.html', 'login.html', 'students.html', 'about.html', 'app.html',
   'app.js', 'portal.js', 'login.js', 'portal.css', 'style.css', 'manifest.json',
@@ -8,7 +8,10 @@ const CORE = [
 ];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(CORE)).then(() => self.skipWaiting()));
+  /* cache: 'reload' keeps the browser's HTTP cache out of the precache, so a
+     page and its stylesheets are never stored at different ages. */
+  const fresh = CORE.map((url) => new Request(url, { cache: 'reload' }));
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(fresh)).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (e) => {
