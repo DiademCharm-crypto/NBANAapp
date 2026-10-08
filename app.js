@@ -116,7 +116,8 @@ const NBANA = (() => {
     account.username = (profile.email || '').trim().toLowerCase();
     account.role = profile.role || 'student';
     if (account.role === 'teacher') account.assignedGrade = profile.assignedGrade || '';
-    account.billing = defaultBilling();
+    /* No tuition is attached to a new account: the office assigns fees
+       from the Tuition & Fees page when they are ready to. */
     account.tasks = defaultTasks();
     accounts.push(account);
     saveAccounts(accounts);
@@ -264,13 +265,295 @@ const NBANA = (() => {
     store.set(KEYS.seeded, true);
   }
 
+  /* ---------- Enrolled students (SF1 roster) ----------
+     students-roster.js carries the school's School Form 1 roster (Grades 1-6,
+     one class per grade, no sections). Each learner becomes a portal account
+     the first time the app runs on a device. The merge is idempotent and keyed
+     on the account id and email, so office edits are never overwritten and the
+     roster never duplicates itself. */
+  function accountFromRoster(s) {
+    return {
+      id: s.id,
+      role: 'student',
+      firstName: s.first,
+      middleName: s.middle,
+      lastName: s.last,
+      fullName: [s.first, s.middle, s.last].filter(Boolean).join(' '),
+      age: s.age,
+      birthdate: s.birth,
+      gender: s.sex,
+      civilStatus: 'Single',
+      religion: s.religion,
+      nationality: 'Filipino',
+      email: s.email,
+      phone: '',
+      address: {
+        house: (s.address && s.address.house) || '',
+        barangay: (s.address && s.address.barangay) || '',
+        city: (s.address && s.address.city) || '',
+        province: (s.address && s.address.province) || '',
+        zip: ''
+      },
+      guardian: {
+        name: (s.guardian && s.guardian.name) || '',
+        relationship: (s.guardian && s.guardian.relationship) || '',
+        phone: '',
+        occupation: ''
+      },
+      /* No section: every grade in this school runs as a single class */
+      student: {
+        lrn: s.lrn,
+        gradeLevel: s.grade,
+        schoolYear: DEFAULT_SCHOOL_YEAR,
+        semester: 'First Semester'
+      },
+      username: s.email,
+      passwordHash: s.passwordHash,
+      createdAt: new Date().toISOString(),
+      /* Tuition is deliberately not set: the school assesses fees later */
+      tasks: []
+    };
+  }
+
+  function seedRoster() {
+    const roster = (typeof window !== 'undefined' && Array.isArray(window.NBANA_ROSTER))
+      ? window.NBANA_ROSTER : [];
+    if (!roster.length) return 0;
+    const accounts = getAccounts();
+    const ids = new Set(accounts.map(a => a.id));
+    const mails = new Set(accounts.map(a => String(a.email || '').toLowerCase()));
+    let added = 0;
+    roster.forEach(s => {
+      if (!s || !s.id || !s.email) return;
+      const mail = String(s.email).toLowerCase();
+      if (ids.has(s.id) || mails.has(mail)) return;
+      accounts.push(accountFromRoster(s));
+      ids.add(s.id);
+      mails.add(mail);
+      added++;
+    });
+    if (added) saveAccounts(accounts);
+    return added;
+  }
+
+  /* ---------- Faculty & staff (the school's Teachers & Staff listing) ----------
+     faculty-roster.js carries the listing about.html shows: the school
+     administration and the eight class advisers. A full admin can edit the
+     list inside the portal. Their copy lives in FACULTY_KEY and is what every
+     page (portal and the public Teachers & Staff page) renders. */
+  const FACULTY_KEY = 'nbana.faculty.v1';
+
+  function defaultFaculty() {
+    const def = (typeof window !== 'undefined' && Array.isArray(window.NBANA_FACULTY)) ? window.NBANA_FACULTY : [];
+    return def.map(f => Object.assign({}, f));
+  }
+
+  function facultyList() {
+    const saved = store.get(FACULTY_KEY, null);
+    const list = Array.isArray(saved) ? saved : defaultFaculty();
+    return list.slice().sort((a, b) =>
+      (Number(a.order) || 0) - (Number(b.order) || 0) ||
+      String(a.name || '').localeCompare(String(b.name || '')));
+  }
+
+  function saveFaculty(list) { store.set(FACULTY_KEY, list || []); }
+  function facultyAdmins() { return facultyList().filter(f => f.group !== 'teacher'); }
+  function facultyTeachers() { return facultyList().filter(f => f.group === 'teacher'); }
+  function facultyAdviser(grade) {
+    const t = facultyTeachers().find(f => f.grade === grade);
+    return t ? t.name : '';
+  }
+
+  /* ---------- Teacher accounts (one for every class adviser) ----------
+     Every adviser in the listing gets a portal account the first time a device
+     runs the app. The merge is keyed on the account id and the email, so
+     office edits survive and nothing duplicates itself. When the principal
+     moves a teacher to another grade in Faculty & Staff, the account follows
+     on every device, and teachers never carry tuition. */
+  const DEFAULT_TEACHER_PW = 'nbana123';
+
+  function firstWord(name) { return String(name || '').trim().split(/\s+/)[0] || ''; }
+  function lastWord(name) {
+    const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+    return parts.length ? parts[parts.length - 1] : '';
+  }
+  /* 'Sunshine Rose A. Anggot' -> 'sunshine.anggot@nbana.edu.ph' */
+  function emailFor(name) {
+    const slug = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const last = slug(lastWord(name));
+    return slug(firstWord(name)) + (last ? '.' + last : '') + '@nbana.edu.ph';
+  }
+  function freeEmail(email) {
+    const taken = new Set(getAccounts().map(a => String(a.email || '').toLowerCase()));
+    if (!taken.has(email)) return email;
+    const parts = email.split('@');
+    let n = 2;
+    while (taken.has(parts[0] + n + '@' + parts[1])) n++;
+    return parts[0] + n + '@' + parts[1];
+  }
+
+  function seedFaculty() {
+    const seeds = (typeof window !== 'undefined' && Array.isArray(window.NBANA_TEACHER_SEEDS))
+      ? window.NBANA_TEACHER_SEEDS : [];
+    const teachers = facultyTeachers();
+    if (!teachers.length) return { added: 0, updated: 0 };
+    const accounts = getAccounts();
+    const byId = new Map(accounts.map(a => [a.id, a]));
+    const byMail = new Map(accounts.map(a => [String(a.email || '').toLowerCase(), a]));
+    let added = 0;
+    let updated = 0;
+
+    teachers.forEach(t => {
+      if (!t || !t.id) return;
+      const seed = seeds.find(s => s.facultyId === t.id) || null;
+      const wanted = String(t.email || (seed && seed.email) || emailFor(t.name)).toLowerCase();
+      const acc = (seed && byId.get(seed.id)) || byMail.get(wanted) || null;
+
+      if (!acc) {
+        const mail = freeEmail(wanted);
+        const fresh = {
+          /* Seeded accounts keep their fixed id so every device agrees on it */
+          id: (seed && seed.id) || ('acc_' + t.id),
+          role: 'teacher',
+          facultyId: t.id,
+          firstName: firstWord(t.name),
+          middleName: '',
+          lastName: lastWord(t.name),
+          fullName: t.name,
+          assignedGrade: t.grade || '',
+          email: mail,
+          phone: '',
+          address: { house: '', barangay: '', city: '', province: '', zip: '' },
+          photo: t.photo || '',
+          username: mail,
+          passwordHash: (seed && seed.passwordHash) || hash(DEFAULT_TEACHER_PW),
+          createdAt: new Date().toISOString(),
+          tasks: []
+        };
+        accounts.push(fresh);
+        byId.set(fresh.id, fresh);
+        byMail.set(mail, fresh);
+        added++;
+        return;
+      }
+
+      /* Never touch a student or office account that shares the address */
+      if (acc.role !== 'teacher') return;
+      let dirty = false;
+      if (acc.facultyId !== t.id) { acc.facultyId = t.id; dirty = true; }
+      if (acc.fullName !== t.name) {
+        acc.fullName = t.name;
+        acc.firstName = firstWord(t.name);
+        acc.lastName = lastWord(t.name);
+        dirty = true;
+      }
+      if ((acc.assignedGrade || '') !== (t.grade || '')) { acc.assignedGrade = t.grade || ''; dirty = true; }
+      if (t.photo && acc.photo !== t.photo) { acc.photo = t.photo; dirty = true; }
+      if (acc.billing) { delete acc.billing; dirty = true; }
+      if (dirty) updated++;
+    });
+
+    if (added || updated) saveAccounts(accounts);
+    return { added, updated };
+  }
+
+  /* ---------- Public Teachers & Staff page (about.html) ----------
+     The page ships the listing as plain HTML so it also works without
+     JavaScript; here the two card grids are refreshed from the shared faculty
+     data, and when the cloud is configured the principal's latest edits are
+     picked up so the live website matches the portal. */
+  function escHtml(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function facultyCard(f) {
+    return '<div class="card ' + (f.group === 'teacher' ? 'card-teacher' : 'card-admin') + '">' +
+      '<div class="img-wrapper"><img src="' + escHtml(f.photo || 'logo.png') + '" alt="' + escHtml(f.name) + '" loading="lazy"></div>' +
+      '<h3>' + escHtml(f.name) + '</h3>' +
+      '<p class="role">' + escHtml(f.role || '') + '</p></div>';
+  }
+
+  function renderFacultyPage() {
+    const admins = document.getElementById('facAdmins');
+    const teachers = document.getElementById('facTeachers');
+    if (!admins && !teachers) return;
+    const list = facultyList();
+    if (admins) admins.innerHTML = list.filter(f => f.group !== 'teacher').map(facultyCard).join('');
+    if (teachers) teachers.innerHTML = list.filter(f => f.group === 'teacher').map(facultyCard).join('');
+  }
+
+  /* One small read: only the faculty rows, never the whole school dataset. */
+  async function refreshFacultyFromCloud() {
+    const cfg = (typeof window !== 'undefined' && window.NBANA_CLOUD) || {};
+    if (!cfg.url || !cfg.key || cfg.enabled === false) return false;
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) return false;
+    const rest = String(cfg.url).replace(/\/+$/, '') + '/rest/v1/nbana_records';
+    let rows;
+    try {
+      const res = await fetch(rest + '?kind=eq.faculty&select=payload', {
+        headers: { apikey: cfg.key, Authorization: 'Bearer ' + cfg.key }
+      });
+      if (!res.ok) return false;
+      rows = await res.json();
+    } catch (e) {
+      return false;
+    }
+    const items = (rows || []).map(r => r && r.payload).filter(x => x && x.id);
+    if (!items.length) return false;
+    store.set(FACULTY_KEY, items);
+    return true;
+  }
+
+  /* ---------- One-time tuition cleanup ----------
+     Older builds stamped the demo tuition (the ₱12,800 default) onto every
+     account. The school has not assessed tuition yet, so drop any assessment
+     that still exactly matches that demo default. Real fees the office assigns
+     are never touched, and each device only ever runs this once. */
+  const NOTUITION_KEY = 'nbana.notuition.v1';
+  function stripDemoTuition() {
+    if (store.get(NOTUITION_KEY, false) === true) return 0;
+    const accounts = getAccounts();
+    let cleared = 0;
+    accounts.forEach(a => {
+      if (a.billing && isDemoBilling(a.billing)) { delete a.billing; cleared++; }
+    });
+    if (cleared) saveAccounts(accounts);
+    store.set(NOTUITION_KEY, true);
+    return cleared;
+  }
+
   /* ---------- Billing helpers ---------- */
+  /* An account still carrying the untouched demo assessment - same line items,
+     never any payment - counts as "no tuition yet". Key order changes when
+     records travel through the cloud, so compare content, not strings. */
+  function isDemoBilling(b) {
+    if (!b) return false;
+    if ((b.payments || []).length) return false;
+    const d = defaultBilling();
+    const items = b.items || [];
+    if (items.length !== d.items.length) return false;
+    return items.every((it, i) =>
+      it.label === d.items[i].label &&
+      Number(it.amount) === Number(d.items[i].amount) &&
+      String(it.note || '') === String(d.items[i].note || ''));
+  }
+
   function billingSummary(account) {
-    const b = account.billing || defaultBilling();
-    const assessed = b.items.reduce((s, i) => s + i.amount, 0);
-    const paid = (b.payments || []).reduce((s, p) => s + p.amount, 0);
+    const b = account && account.billing;
+    const items = (b && b.items) || [];
+    const payments = (b && b.payments) || [];
+    /* "No tuition yet" means: no assessment at all, the untouched demo
+       default, or an emptied-out assessment. Never invent fees - the office
+       assigns them from the Tuition & Fees page. */
+    if (!b || isDemoBilling(b) || (!items.length && !payments.length)) {
+      return { assessed: 0, paid: 0, balance: 0, percent: 0, items: [], payments: [], unset: true };
+    }
+    const assessed = items.reduce((s, i) => s + i.amount, 0);
+    const paid = payments.reduce((s, p) => s + p.amount, 0);
     const balance = Math.max(0, assessed - paid);
-    return { assessed, paid, balance, percent: assessed ? Math.round((paid / assessed) * 100) : 0, items: b.items, payments: b.payments || [] };
+    return { assessed, paid, balance, percent: assessed ? Math.round((paid / assessed) * 100) : 0, items: items, payments: payments };
   }
 
   /* ---------- Currency ---------- */
@@ -526,8 +809,15 @@ const NBANA = (() => {
   /* ---------- Boot ---------- */
   function init() {
     seedDemo();
+    seedFaculty();
+    seedRoster();
+    stripDemoTuition();
     initTheme();
     document.addEventListener('DOMContentLoaded', () => {
+      renderFacultyPage();
+      if (document.getElementById('facAdmins') || document.getElementById('facTeachers')) {
+        refreshFacultyFromCloud().then((fresh) => { if (fresh) renderFacultyPage(); });
+      }
       enhanceNav();
       initReveal();
       initCounters();
@@ -562,6 +852,10 @@ const NBANA = (() => {
     isAdminRole, roleLabel, checkStaffCode,
     getSchoolYear, setSchoolYear, nextSchoolYear,
     rememberPw, decPw,
+    seedRoster, seedFaculty,
+    FACULTY_KEY, facultyList, saveFaculty, facultyAdmins, facultyTeachers, facultyAdviser,
+    renderFacultyPage,
+    escHtml,
     appUrl, appModeOn, standaloneApp, forceAppMode
   };
 })();

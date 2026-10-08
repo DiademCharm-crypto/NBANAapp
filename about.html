@@ -254,12 +254,12 @@
 <body>
 
   <div class="top-bar">
-    <a href="index.html" class="back-btn">
-      &#8592; Home
-    </a>
-    <div class="school-brand">
+    <!-- Header nav buttons removed: the header only shows the logo and app name -->
+    <div class="nav-spacer" aria-hidden="true"></div>
+    <!-- Header brand: logo + app name only, deliberately not a link -->
+    <div class="school-brand" role="img" aria-label="NBANA App">
       <img src="logo.png" alt="NBANA Logo" class="school-logo-img">
-      <span class="school-tag">Norberto Bana Sr. Mem. SDA Elementary School</span>
+      <span class="school-tag">NBANA App</span>
     </div>
     <div class="nav-auth"></div>
   </div>
@@ -272,7 +272,9 @@
   <div class="container">
     
     <div class="section-label">Administration</div>
-    <div class="grid-row">
+    <!-- Kept as plain HTML so the page works without JavaScript; app.js refreshes
+         the cards from the shared faculty list (faculty-roster.js + cloud edits). -->
+    <div class="grid-row" id="facAdmins">
 
       <div class="card card-admin">
         <div class="img-wrapper">
@@ -327,7 +329,7 @@ Western Mindanao Conference</p>
     </div>
 
     <div class="section-label">Teaching Faculty</div>
-    <div class="grid-row">
+    <div class="grid-row" id="facTeachers">
       
       <div class="card card-teacher">
         <div class="img-wrapper">
@@ -421,6 +423,8 @@ Western Mindanao Conference</p>
 
   </div>
 
+  <script src="faculty-roster.js"></script>
+  <script src="supabase-config.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

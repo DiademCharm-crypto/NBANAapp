@@ -22,7 +22,7 @@
   <!-- App launch splash: only shown in app mode, hidden again by app.js -->
   <div id="splash" hidden>
     <img src="logo.png" alt="" class="splash-logo">
-    <strong class="splash-name">NBANA Portal</strong>
+    <strong class="splash-name">NBANA App</strong>
     <span class="splash-sub">Norberto Bana Sr. Mem. SDA Elementary School</span>
     <span class="splash-dots" aria-label="Loading"><i></i><i></i><i></i></span>
   </div>
@@ -30,16 +30,11 @@
   <!-- The logo is deliberately not a link on the portal: tapping it must not
        dump the user back onto the public website. -->
   <nav class="navbar">
-    <span class="logo" role="img" aria-label="NBANA Portal">
+    <span class="logo" role="img" aria-label="NBANA App">
       <img src="logo.png" alt="NBANA Logo" class="logo-img">
-      <span class="school-name">NBANA Portal</span>
+      <span class="school-name">NBANA App</span>
     </span>
-    <ul class="nav-links">
-      <li><a href="index.html">Home</a></li>
-      <li><a href="about.html">About</a></li>
-      <li><a href="students.html">Students</a></li>
-      <li><a href="index.html#announcements">Announcements</a></li>
-    </ul>
+    <!-- Header nav buttons removed: the header only shows the logo and app name -->
   </nav>
 
   <div class="portal-shell" id="portalShell">
@@ -98,12 +93,12 @@
           <h2 id="wbName">Student</h2>
           <p id="wbText">Here is your school day at a glance.</p>
           <p class="wb-verse" id="wbVerse"></p>
-          <button type="button" class="wb-verse-btn" id="wbVerseBtn">&#8635; Another verse</button>
+          <span class="wb-verse-tag" id="wbVerseTag">Verse of the day</span>
         </div>
 
         <div class="panel" id="dashFeedPanel">
           <div class="panel-head">
-            <div><h3>Announcements &amp; school events</h3><span class="sub" id="dashFeedSub">Latest news from the school</span></div>
+            <div><h3>Announcements</h3><span class="sub" id="dashFeedSub">Official announcements from the school</span></div>
             <button type="button" class="btn-sm" data-goto="news">See all</button>
           </div>
           <div class="panel-body flush feed" id="dashFeed"></div>
@@ -134,6 +129,15 @@
             <div class="sc-value" id="sumBalance">&mdash;</div>
             <div class="sc-sub" id="sumBalanceSub">&mdash;</div>
           </div>
+        </div>
+
+        <!-- Student performance: filled by renderDashPerf() in portal.js -->
+        <div class="panel" id="dashPerfPanel">
+          <div class="panel-head">
+            <div><h3>My performance</h3><span class="sub" id="dashPerfSub">Subject marks and attendance this term</span></div>
+            <button type="button" class="btn-sm" data-goto="grades">Full report card</button>
+          </div>
+          <div class="panel-body" id="dashPerf"></div>
         </div>
 
         <div class="panel-grid">
@@ -517,15 +521,37 @@
       <section class="view" id="view-faculty">
         <div class="panel">
           <div class="panel-head">
-            <div><h3>Faculty &amp; staff</h3><span class="sub" id="facultySub">Teachers and school staff</span></div>
+            <div><h3>Teachers &amp; staff</h3><span class="sub" id="facultySub">The school's faculty &amp; leadership</span></div>
+            <button type="button" class="btn-sm solid" id="btnFacEdit" hidden>Edit faculty</button>
           </div>
-          <div class="panel-body flush table-wrap">
-            <table class="data-table">
-              <thead><tr><th>Name</th><th>Role</th><th>Grade level</th><th>Portal access</th></tr></thead>
-              <tbody id="facultyRows"></tbody>
-            </table>
+          <div class="panel-body">
+            <div class="section-label">Administration</div>
+            <div class="fac-grid" id="facDirAdmins"></div>
+            <div class="section-label">Teaching Faculty</div>
+            <div class="fac-grid" id="facDirTeachers"></div>
           </div>
         </div>
+
+        <div class="panel" id="facEditor" hidden>
+          <div class="panel-head">
+            <div><h3 id="facEditorTitle">Edit faculty &amp; staff</h3><span class="sub">Move a teacher to another grade, add a new hire, or remove a name when someone leaves. Saving updates every device.</span></div>
+            <button type="button" class="btn-sm" id="btnFacClose">Close</button>
+          </div>
+          <div class="panel-body">
+            <div class="fac-edit-head"><span class="admin-tag">Administration</span></div>
+            <div class="fac-edit-list" id="facEditAdmins"></div>
+            <div class="fac-edit-head"><span class="admin-tag">Teaching faculty</span><span class="sc-sub">The grade level decides whose class the teacher handles in the portal</span></div>
+            <div class="fac-edit-list" id="facEditTeachers"></div>
+            <div class="fac-edit-actions">
+              <button type="button" class="btn-sm" id="btnFacAddAdmin">+ Add administration</button>
+              <button type="button" class="btn-sm" id="btnFacAddTeacher">+ Add teacher</button>
+              <button type="button" class="btn-sm solid" id="btnFacSave">Save faculty</button>
+              <button type="button" class="btn-sm" id="btnFacCancel">Cancel</button>
+            </div>
+            <p class="sc-sub">Removing a name here only takes them off the listing. It never deletes a portal account &mdash; use Students &rarr; New account to manage logins.</p>
+          </div>
+        </div>
+
         <div class="panel">
           <div class="panel-head">
             <div><h3>School administration</h3><span class="sub">Who to approach for what</span></div>
@@ -536,6 +562,12 @@
 
       <!-- ============ STUDENTS (principal) ============ -->
       <section class="view" id="view-students">
+        <div class="admin-bar" id="stuFilterBar">
+          <span class="admin-tag">Class list</span>
+          <label for="stuGradeSel">Student grade</label>
+          <select id="stuGradeSel" class="input input-sm"></select>
+          <span class="sc-sub" id="stuFilterNote">Boys and girls are listed in separate groups</span>
+        </div>
         <div class="panel">
           <div class="panel-head">
             <div><h3>Student accounts</h3><span class="sub" id="stuCount">All enrolled students</span></div>
@@ -543,7 +575,7 @@
           </div>
           <div class="panel-body flush table-wrap">
             <table class="data-table">
-              <thead><tr><th>Photo</th><th>Name</th><th>Grade</th><th>Section</th><th>LRN</th><th class="num">Balance</th><th></th></tr></thead>
+              <thead><tr><th>Photo</th><th>Name</th><th>Grade</th><th>LRN</th><th class="num">Balance</th><th></th></tr></thead>
               <tbody id="stuRows"></tbody>
             </table>
           </div>
@@ -728,7 +760,7 @@
 
   <nav id="bottomNav">
     <button type="button" data-bnav="news"><span class="bn-ico">&#128240;</span>Feed</button>
-    <button type="button" data-bnav="dashboard"><span class="bn-ico">&#8962;</span>Home</button>
+    <button type="button" data-bnav="dashboard"><span class="bn-ico">&#8962;</span>Dashboard</button>
     <button type="button" data-bnav="messages"><span class="bn-ico">&#128172;</span>Messages</button>
     <button type="button" data-bnav="alerts"><span class="bn-ico">&#128276;</span>Alerts</button>
     <button type="button" data-bnav="more"><span class="bn-ico">&#9776;</span>More</button>
@@ -782,6 +814,8 @@
     </div>
   </div>
 
+  <script src="faculty-roster.js"></script>
+  <script src="students-roster.js"></script>
   <script src="app.js"></script>
   <script src="supabase-config.js"></script>
   <script src="supabase-sync.js"></script>

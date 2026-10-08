@@ -45,7 +45,9 @@
     grades: { key: 'nbana.grades.v1', shape: 'map' },
     attendance: { key: 'nbana.attendance.v1', shape: 'map' },
     schedule: { key: 'nbana.schedules.v1', shape: 'map' },
-    notice: { key: 'nbana.notices.v1', shape: 'list' }
+    notice: { key: 'nbana.notices.v1', shape: 'list' },
+    /* Faculty & staff listing (portal + the public Teachers & Staff page) */
+    faculty: { key: 'nbana.faculty.v1', shape: 'list' }
   };
   const KEY_TO_KIND = {};
   Object.keys(KINDS).forEach(function (name) { KEY_TO_KIND[KINDS[name].key] = name; });

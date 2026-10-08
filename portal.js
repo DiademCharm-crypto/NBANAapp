@@ -33,8 +33,15 @@
     assignments: 'nbana.assignments.v1',
     concerns: 'nbana.concerns.v1',
     threads: 'nbana.threads.v1',
-    notices: 'nbana.notices.v1'
+    notices: 'nbana.notices.v1',
+    /* Where the user was last time, so a refresh keeps the same page open */
+    view: 'nbana.view.v1',
+    thread: 'nbana.thread.v1',
+    chatMode: 'nbana.chatmode.v1'
   };
+
+  function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, v == null ? '' : String(v)); } catch (e) {} }
 
   function esc(s) {
     return String(s == null ? '' : s)
@@ -62,10 +69,16 @@
     return NBANA.getAccounts().filter(a =>
       (a.role || 'student') === 'student' &&
       (!isTeacher || (a.student && a.student.gradeLevel) === teacherGrade)
-    );
+    ).sort(byClassOrder);
   }
   function allStudents() {
-    return NBANA.getAccounts().filter(a => (a.role || 'student') === 'student');
+    return NBANA.getAccounts().filter(a => (a.role || 'student') === 'student').sort(byClassOrder);
+  }
+  /* Class order for every list of students: Grade 1 upward, then surname */
+  function gradeRank(g) { const m = String(g || '').match(/\d+/); return m ? Number(m[0]) : 0; }
+  function byClassOrder(a, b) {
+    return gradeRank((a.student || {}).gradeLevel) - gradeRank((b.student || {}).gradeLevel) ||
+      nameOf(a).localeCompare(nameOf(b));
   }
   /* Students still enrolled this school year (Grade 6 leavers drop out of the roster) */
   function isGraduated(a) { return !!(a.student && a.student.status === GRADUATED); }
@@ -108,6 +121,14 @@
     principal: ['dashboard', 'students', 'approvals', 'fees', 'grades', 'attendance', 'schedule', 'news', 'faculty', 'messages', 'contact', 'pwreq', 'profile']
   };
   ALLOWED.admin = ALLOWED.principal;
+  /* Teachers never carry tuition, so the fees page is closed to them entirely */
+  const canSeeFees = ALLOWED[role].indexOf('fees') > -1;
+
+  /* Refreshing used to drop the user back on the feed - now the open page is remembered */
+  function savedView() {
+    const v = lsGet(K.view);
+    return v && VIEWS[v] && ALLOWED[role].indexOf(v) > -1 ? v : null;
+  }
 
   function setView(name) {
     if (!VIEWS[name] || ALLOWED[role].indexOf(name) === -1) name = 'dashboard';
@@ -119,9 +140,11 @@
     if (name === 'messages') renderMessages();
     if (name === 'contact') { renderConcerns(); renderNotices(); markConcernsSeen(); markNoticesRead(); }
     if (name === 'pwreq') renderPwReqs();
+    if (name === 'faculty') renderFaculty();
     $('portalShell').classList.remove('side-open');
     closeDrawer();
     syncBottomNav(name);
+    lsSet(K.view, name);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
@@ -474,20 +497,6 @@
   }
   const fmtDate = (d) => new Date(d).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
 
-  /* Deterministic pseudo-random from a string seed */
-  function seedOf(str) {
-    let h = 2166136261;
-    for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
-    return h >>> 0;
-  }
-  function makeRng(seed) {
-    let x = seed || 12345;
-    return () => {
-      x ^= x << 13; x ^= x >>> 17; x ^= x << 5;
-      return ((x >>> 0) % 100000) / 100000;
-    };
-  }
-
   /* ---------------- Announcements & posts (shared feed) ---------------- */
   const NEWS = [
     { tag: 'Enrollment', date: 'Ongoing', title: 'School Year Enrollment Open', body: 'Enrollment for the upcoming school year is now ongoing. Visit the administration office for requirements and inquiries.' },
@@ -533,7 +542,7 @@
     return '\u{1F319}';
   }
 
-  /* A verse a day - motivational and positive verses for the whole school */
+  /* Motivational verses for the whole school - one lands on the dashboard per day */
   const VERSES = [
     { t: 'I can do all things through Christ who strengthens me.', r: 'Philippians 4:13' },
     { t: 'For I know the plans I have for you, declares the Lord, plans to prosper you and not to harm you, plans to give you hope and a future.', r: 'Jeremiah 29:11' },
@@ -551,13 +560,11 @@
     { t: 'Cast all your anxiety on him because he cares for you.', r: '1 Peter 5:7' },
     { t: 'Be kind and compassionate to one another, forgiving each other.', r: 'Ephesians 4:32' }
   ];
-  let verseOffset = 0;
-
+  /* The verse rotates on its own - one verse per calendar day, so there is no button */
   function verseOfTheDay() {
     const now = new Date();
     const dayOfYear = Math.floor((now - new Date(now.getFullYear(), 0, 0)) / 86400000);
-    const i = ((dayOfYear + verseOffset) % VERSES.length + VERSES.length) % VERSES.length;
-    return VERSES[i];
+    return VERSES[((dayOfYear % VERSES.length) + VERSES.length) % VERSES.length];
   }
 
   function renderVerse() {
@@ -565,8 +572,12 @@
     const el = $('wbVerse');
     if (!el) return;
     el.innerHTML = '"' + esc(v.t) + '" <span class="wb-verse-ref">\u2014 ' + esc(v.r) + '</span>';
+    const tag = $('wbVerseTag');
+    if (tag) {
+      tag.textContent = 'Verse of the day \u00b7 ' +
+        new Date().toLocaleDateString('en-PH', { month: 'long', day: 'numeric' });
+    }
   }
-  if ($('wbVerseBtn')) $('wbVerseBtn').addEventListener('click', () => { verseOffset++; renderVerse(); });
 
   /* Principal announcements are published right away; teacher posts are queued for approval */
   function statusPill(p) {
@@ -614,7 +625,7 @@
                           : 'approved posts for ' + teacherGrade)))
       : 'Posted by the school and your teachers';
 
-    renderDashFeed(list);
+    renderDashFeed();
 
   }
 
@@ -635,19 +646,119 @@
     NBANA.toast('Post deleted.', 'success');
   });
 
-  /* The dashboard feed: newest announcements, then every past school event below */
-  function renderDashFeed(list) {
+  /* The dashboard carries official school announcements only \u2014 teacher and class
+     posts, and the past-events archive, stay on the Feed page. */
+  function announcementPosts() {
+    return visibleFeed()
+      .filter(p => NBANA.isAdminRole(p.role))
+      .sort((a, b) => new Date(b.date) - new Date(a.date));
+  }
+
+  function renderDashFeed() {
     const wrap = $('dashFeed');
     if (!wrap) return;
-    const posts = list.length
+    const list = announcementPosts();
+    wrap.innerHTML = list.length
       ? list.map(p => postHtml(p)).join('')
-      : '<div class="feed-post"><span class="fp-body">No announcements yet \u2014 check back soon!</span></div>';
-    wrap.innerHTML = posts +
-      '<div class="feed-divider"><span>Past events &amp; school memories</span></div>' +
-      PAST_EVENTS.map(e => pastEventHtml(e)).join('');
+      : NEWS.map(newsItemHtml).join('');
     mediaHydrate(wrap);
-    $('dashFeedSub').textContent = list.length + ' announcement' + (list.length === 1 ? '' : 's') +
-      ' \u00b7 scroll down for past school events';
+    $('dashFeedSub').textContent = list.length
+      ? list.length + ' announcement' + (list.length === 1 ? '' : 's') + ' from the school'
+      : 'Official announcements from the school';
+  }
+
+  /* ---------------- Student performance (dashboard panel) ---------------- */
+  function perfBar(pct) {
+    const w = Math.max(0, Math.min(100, Math.round(pct)));
+    return '<span class="bar light perf-bar"><span style="width:' + w + '%"></span></span>';
+  }
+  function perfPill(v) { return v >= 85 ? 'pill-green' : v >= 75 ? 'pill-navy' : 'pill-red'; }
+
+  /* A student sees their own subject marks and attendance */
+  function renderStudentPerf(box) {
+    const grades = computeGrades(user);
+    const days = computeAttendance(user);
+    const graded = grades.filter(g => g.final !== null);
+    const attended = days.filter(d => d.status !== 'Absent').length;
+    const rate = days.length ? Math.round((attended / days.length) * 100) : null;
+    const avg = graded.length ? Math.round(graded.reduce((s, g) => s + g.final, 0) / graded.length) : null;
+    const standing = avg == null ? 'Not yet posted'
+      : (avg >= 90 ? 'With Honors' : avg >= 85 ? 'High' : avg >= 75 ? 'Passing' : 'Needs review');
+
+    const sub = $('dashPerfSub');
+    if (sub) sub.textContent = gradeLevel + ' \u00b7 ' + schoolYear + ' \u00b7 ' + grades.length + ' subjects';
+
+    box.innerHTML =
+      '<div class="perf-kpis">' +
+        '<span class="perf-kpi"><strong>' + (avg == null ? '\u2014' : avg) + '</strong>General average</span>' +
+        '<span class="perf-kpi"><strong>' + (rate == null ? '\u2014' : rate + '%') + '</strong>Attendance rate</span>' +
+        '<span class="perf-kpi"><strong>' + (days.length ? attended + '/' + days.length : '\u2014') + '</strong>Days present</span>' +
+        '<span class="perf-kpi"><strong' + (avg == null ? '' : ' class="pill ' + perfPill(avg) + '"') + '>' + standing + '</strong>Standing</span>' +
+      '</div>' +
+      '<div class="perf-list">' + grades.map(g =>
+        '<div class="perf-row">' +
+          '<span class="perf-name">' + esc(g.name) + '</span>' + perfBar(g.final) +
+          '<span class="perf-val">' + (g.final == null ? '\u2014' : g.final) + '</span>' +
+          (g.pill ? '<span class="pill ' + g.pill + '">' + esc(g.remarks) + '</span>'
+                  : '<span class="sc-sub">not posted</span>') +
+        '</div>').join('') + '</div>' +
+      '<p class="sc-sub" style="margin-top:14px">' +
+      (graded.length
+        ? 'Marks follow the term breakdown: written work, performance task, and quarterly exam.'
+        : 'Grades are not posted yet \u2014 marks appear here once your teacher or the school office encodes them.') +
+      '</p>';
+  }
+
+  /* A teacher sees their class; the principal sees the whole school */
+  function renderAdminPerf(box) {
+    const students = isPrincipal ? activeStudents() : studentsInScope();
+    const rows = students.map(a => {
+      const g = computeGrades(a);
+      const graded = g.filter(x => x.final !== null);
+      const avg = graded.length ? Math.round(graded.reduce((s, x) => s + x.final, 0) / graded.length) : null;
+      const days = computeAttendance(a);
+      const attended = days.filter(d => d.status !== 'Absent').length;
+      const rate = days.length ? Math.round((attended / days.length) * 100) : null;
+      const st = a.student || {};
+      let tag;
+      if (avg != null && rate != null) tag = '<span class="pill ' + perfPill(avg) + '">' + rate + '% att.</span>';
+      else if (avg == null && rate == null) tag = '<span class="sc-sub">not posted yet</span>';
+      else if (rate == null) tag = '<span class="sc-sub">no attendance yet</span>';
+      else tag = '<span class="sc-sub">' + rate + '% att. \u00b7 no grades</span>';
+      return { a, avg, rate, tag, grade: st.gradeLevel || '', section: st.section || '' };
+    }).sort((x, y) => (y.avg == null ? -1 : y.avg) - (x.avg == null ? -1 : x.avg));
+
+    const posted = rows.filter(r => r.avg != null).length;
+    const needHelp = rows.filter(r => r.avg != null && r.avg < 75).length;
+    const sub = $('adminPerfSub');
+    if (sub) {
+      sub.textContent = (isPrincipal ? 'All grades \u00b7 ' : teacherGrade + ' \u00b7 ') +
+        rows.length + ' student' + (rows.length === 1 ? '' : 's') +
+        (!posted ? ' \u00b7 grades not posted yet'
+          : needHelp ? ' \u00b7 ' + needHelp + ' below passing' : ' \u00b7 everyone is passing');
+    }
+
+    box.innerHTML = rows.length
+      ? '<div class="perf-list">' + rows.map(r =>
+          '<div class="perf-row">' +
+            '<span class="perf-who">' + avatarSpan('perf-avatar', nameOf(r.a), r.a.photo) +
+              '<span class="perf-who-txt"><strong>' + esc(nameOf(r.a)) + '</strong>' +
+              '<em>' + esc(r.grade || 'No grade') + (r.section ? ' \u00b7 ' + esc(r.section) : '') + '</em></span></span>' +
+            perfBar(r.avg) +
+            '<span class="perf-val">' + (r.avg == null ? '\u2014' : r.avg) + '</span>' +
+            r.tag +
+          '</div>').join('') + '</div>'
+      : '<div class="empty-state">No student accounts yet.</div>';
+  }
+
+  function renderDashPerf() {
+    if (isAdmin) {
+      const abox = $('adminPerf');
+      if (abox) renderAdminPerf(abox);
+      return;
+    }
+    const box = $('dashPerf');
+    if (box) renderStudentPerf(box);
   }
 
   /* ---------------- Approvals (principal / admin) ---------------- */
@@ -951,6 +1062,13 @@
     return t;
   }
 
+  /* Tuition is never assumed: a student with no billing record only gets one
+     when the office edits fees or records a payment. */
+  function ensureBilling(a) {
+    if (a && !a.billing) a.billing = { schoolYear: schoolYear, items: [], payments: [], dueDay: 15 };
+    return a.billing;
+  }
+
   function renderFeeRows(t) {
     const s = NBANA.billingSummary(t);
     if (feeEditing && feeDraft) {
@@ -985,17 +1103,22 @@
       return;
     }
 
-    $('feeRows').innerHTML = s.items.map(i =>
-      '<tr><td><strong>' + esc(i.label) + '</strong></td><td>' + esc(i.note || '') + '</td><td class="num">' + money(i.amount) +
-      (isPrincipal ? ' <button type="button" class="btn-del" data-fdel-view="' + esc(i.label) + '" title="Remove fee">&times;</button>' : '') +
-      '</td></tr>'
-    ).join('');
+    $('feeRows').innerHTML = s.items.length
+      ? s.items.map(i =>
+          '<tr><td><strong>' + esc(i.label) + '</strong></td><td>' + esc(i.note || '') + '</td><td class="num">' + money(i.amount) +
+          (isPrincipal ? ' <button type="button" class="btn-del" data-fdel-view="' + esc(i.label) + '" title="Remove fee">&times;</button>' : '') +
+          '</td></tr>'
+        ).join('')
+      : '<tr><td colspan="3"><div class="empty-state">No tuition assigned yet ' +
+        (isPrincipal ? '\u2014 use Edit fees to assess fees for this student.' : '\u2014 the school office will assign fees later.') +
+        '</div></td></tr>';
     $('feeTotal').textContent = money(s.assessed);
 
     if (isPrincipal) {
       document.querySelectorAll('[data-fdel-view]').forEach(b => {
         b.addEventListener('click', () => {
-          t.billing.items = t.billing.items.filter(x => x.label !== b.dataset.fdelView);
+          const bill = ensureBilling(t);
+          bill.items = bill.items.filter(x => x.label !== b.dataset.fdelView);
           saveUser(t);
           renderFees();
           NBANA.toast('Fee removed from ' + nameOf(t) + '\u2019s assessment.', 'success');
@@ -1011,13 +1134,16 @@
     const dueStr = due.toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' });
     const hero = $('balanceHero');
 
-    $('bhAmount').textContent = money(s.balance);
-    $('bhBar').style.width = s.percent + '%';
-    $('bhAssessed').textContent = money(s.assessed);
-    $('bhPaid').textContent = money(s.paid);
-    $('bhDue').textContent = dueStr;
+    $('bhAmount').textContent = s.unset ? '\u2014' : money(s.balance);
+    $('bhBar').style.width = s.unset ? '0%' : s.percent + '%';
+    $('bhAssessed').textContent = s.unset ? '\u2014' : money(s.assessed);
+    $('bhPaid').textContent = s.unset ? '\u2014' : money(s.paid);
+    $('bhDue').textContent = s.unset ? 'Not assigned yet' : dueStr;
 
-    if (s.balance === 0 && s.assessed > 0) {
+    if (s.unset) {
+      hero.classList.remove('paid');
+      $('bhStatus').textContent = 'No tuition assigned yet \u2014 the school office will assess fees for this student.';
+    } else if (s.balance === 0 && s.assessed > 0) {
       hero.classList.add('paid');
       $('bhStatus').textContent = 'Fully paid \u2014 thank you! No outstanding balance.';
     } else {
@@ -1044,7 +1170,9 @@
     if (isPrincipal) {
       document.querySelectorAll('[data-pdel]').forEach(b => {
         b.addEventListener('click', () => {
-          t.billing.payments = (t.billing.payments || []).filter(x => x.id !== b.dataset.pdel);
+          const delId = b.dataset.pdel;
+          const bill = ensureBilling(t);
+          bill.payments = (t.billing.payments || []).filter(x => x.id !== delId);
           saveUser(t);
           renderFees();
           NBANA.toast('Payment removed.', 'success');
@@ -1055,6 +1183,16 @@
 
     /* Dashboard mirror (student view only) */
     if (!isAdmin) {
+      if (s.unset) {
+        $('sumBalance').textContent = '\u2014';
+        $('sumBalance').className = 'sc-value';
+        $('sumBalanceSub').textContent = 'no tuition assigned yet';
+        $('dashFeeSub').textContent = 'School year ' + schoolYear;
+        $('dashFeeBar').style.width = '0%';
+        $('dashFeePaid').textContent = 'Paid: \u2014';
+        $('dashFeeTotal').textContent = 'Assessed: \u2014';
+        $('dashFeeDue').textContent = 'Tuition has not been assigned to this account yet.';
+      } else {
       $('sumBalance').textContent = money(s.balance);
       $('sumBalance').className = 'sc-value ' + (s.balance > 0 ? 'alert' : 'good');
       $('sumBalanceSub').textContent = s.balance > 0 ? s.percent + '% paid \u00b7 due ' + dueStr : 'Account settled';
@@ -1065,6 +1203,7 @@
       $('dashFeeDue').textContent = s.balance > 0
         ? 'Next due date: ' + dueStr + ' \u00b7 Remaining: ' + money(s.balance)
         : 'No remaining balance. Keep it up!';
+      }
     }
   }
 
@@ -1087,11 +1226,12 @@
       if (!t) return;
       if (!feeEditing) {
         feeEditing = true;
-        feeDraft = JSON.parse(JSON.stringify((t.billing && t.billing.items) || []));
+        feeDraft = JSON.parse(JSON.stringify(NBANA.billingSummary(t).items || []));
         $('btnFeeEdit').textContent = 'Save fees';
         $('btnFeeEdit').classList.add('solid');
       } else {
-        t.billing.items = feeDraft;
+        if (!feeDraft.length) delete t.billing;   /* an empty assessment means no tuition */
+        else ensureBilling(t).items = feeDraft;
         saveUser(t);
         feeEditing = false; feeDraft = null;
         $('btnFeeEdit').textContent = 'Edit fees';
@@ -1123,12 +1263,16 @@
 
     const t = feeTarget() || user;
     const s = NBANA.billingSummary(t);
+    if (s.unset) {
+      NBANA.toast('No tuition has been assigned to this account yet.', 'error');
+      return;
+    }
     if (amount > s.balance && s.balance > 0) {
       NBANA.toast('Amount exceeds the remaining balance of ' + money(s.balance) + '.', 'error');
       return;
     }
 
-    t.billing.payments.push({
+    ensureBilling(t).payments.push({
       id: 'p_' + Date.now().toString(36),
       date: new Date().toISOString().slice(0, 10),
       ref: $('payRef').value.trim() || ('PORTAL-' + Date.now().toString(36).toUpperCase()),
@@ -1146,7 +1290,9 @@
 
   /* ---------------- Student data (deterministic demo records) ---------------- */
   const gradeLevel = (user.student && user.student.gradeLevel) || 'Grade 1';
-  const section = (user.student && user.student.section) || 'Classroom';
+  /* No section on any record: every grade here runs as a single class, so an
+     empty value must stay empty instead of inventing a room name. */
+  const section = (user.student && user.student.section) || '';
   const isKinder = /^Kinder/i.test(gradeLevel);
 
   const TEACHERS = {
@@ -1159,7 +1305,9 @@
     'Grade 5': 'Joy E. Lomongo',
     'Grade 6': 'Sandra E. Argod'
   };
-  const adviser = TEACHERS[gradeLevel] || 'Class Adviser';
+  /* Adviser names come from the faculty list the principal maintains, so a
+     teacher moved to another grade shows up on that grade right away. */
+  const adviser = NBANA.facultyAdviser(gradeLevel) || TEACHERS[gradeLevel] || 'Class Adviser';
 
   const SUBJECTS = isKinder
     ? ['Language', 'Arithmetic', 'Motor Skills', 'Spiritual Life', 'Art & Music', 'Physical Education']
@@ -1174,7 +1322,7 @@
       ? ['English', 'Mathematics', 'Science', 'Filipino', 'Social Studies', 'Spiritual Life', 'MAPEH', 'Computer Skills']
       : ['English', 'Mathematics', 'Science', 'Filipino', 'Social Studies', 'Spiritual Life', 'MAPEH']);
   }
-  function adviserFor(gl) { return TEACHERS[gl] || 'Class Adviser'; }
+  function adviserFor(gl) { return NBANA.facultyAdviser(gl) || TEACHERS[gl] || 'Class Adviser'; }
 
   function row(k, v) {
     return '<div class="info-row"><span class="k">' + k + '</span><span class="v">' + (v || '&mdash;') + '</span></div>';
@@ -1192,18 +1340,25 @@
     return t;
   }
 
+  /* Grades are never invented: subjects come back with null marks until a
+     teacher or the admin types real numbers into the report card. */
   function computeGrades(acct) {
     const gl = (acct.student && acct.student.gradeLevel) || gradeLevel;
     const subs = subjectsFor(gl);
     const stored = loadMap(K.grades)[acct.id] || null;
-    const rng = makeRng(seedOf(acct.id + gl + 'grades'));
     return subs.map(name => {
-      let q = [0, 0, 0, 0].map(() => 76 + Math.floor(rng() * 23));
-      if (stored && stored[name]) q = stored[name].slice(0, 4).map(v => Number(v) || 0);
-      const final = Math.round(q.reduce((a, b) => a + b, 0) / 4);
-      const remarks = final >= 90 ? 'With Merit' : final >= 85 ? 'Good' : final >= 75 ? 'Passed' : 'Needs Review';
-      const pill = final >= 85 ? 'pill-green' : final >= 75 ? 'pill-navy' : 'pill-red';
-      return { name, q, final, remarks, pill };
+      const src = (stored && stored[name]) ? stored[name].slice(0, 4) : [];
+      const q = [0, 1, 2, 3].map(i => {
+        const v = src[i];
+        return (v === null || v === undefined || v === '' || isNaN(Number(v))) ? null : Number(v);
+      });
+      const done = q.filter(v => v !== null);
+      const final = done.length ? Math.round(done.reduce((a, b) => a + b, 0) / done.length) : null;
+      const remarks = final == null ? ''
+        : (final >= 90 ? 'With Merit' : final >= 85 ? 'Good' : final >= 75 ? 'Passed' : 'Needs Review');
+      const pill = final == null ? ''
+        : (final >= 85 ? 'pill-green' : final >= 75 ? 'pill-navy' : 'pill-red');
+      return { name, q, final, remarks, pill, entered: done.length };
     });
   }
 
@@ -1214,32 +1369,35 @@
       return 0;
     }
     const grades = computeGrades(t);
-    const avg = Math.round(grades.reduce((s, g) => s + g.final, 0) / grades.length);
-    const highest = grades.reduce((m, g) => Math.max(m, g.final), 0);
-    const standing = avg >= 90 ? 'With Honors' : avg >= 85 ? 'High' : avg >= 75 ? 'Passing' : 'Review';
+    const done = grades.filter(g => g.final !== null);
+    const avg = done.length ? Math.round(done.reduce((s, g) => s + g.final, 0) / done.length) : null;
+    const highest = done.length ? done.reduce((m, g) => Math.max(m, g.final), 0) : null;
+    const standing = avg == null ? 'Not yet posted'
+      : (avg >= 90 ? 'With Honors' : avg >= 85 ? 'High' : avg >= 75 ? 'Passing' : 'Review');
 
-    $('gAverage').textContent = avg;
-    $('gHighest').textContent = highest;
+    $('gAverage').textContent = avg == null ? '\u2014' : avg;
+    $('gHighest').textContent = highest == null ? '\u2014' : highest;
     $('gSubjects').textContent = grades.length;
     $('gStanding').textContent = standing;
     const tGl = (t.student && t.student.gradeLevel) || gradeLevel;
+    /* Sections are optional on every record, so empty parts drop out of the line */
     const tSec = (t.student && t.student.section) || section;
     $('gradeSub').textContent = (isAdmin ? esc(nameOf(t)) + ' \u00b7 ' : '') +
-      tGl + ' \u00b7 ' + tSec + ' \u00b7 ' + schoolYear;
+      [tGl, tSec, schoolYear].filter(Boolean).join(' \u00b7 ');
     $('gradeRows').innerHTML = grades.map(g =>
       '<tr><td><strong>' + esc(g.name) + '</strong></td>' +
       (gradeEditing
-        ? g.q.map((v, qi) => '<td class="num"><input class="input input-sm num-in" type="number" min="0" max="100" data-gsub="' + esc(g.name) + '" data-gq="' + qi + '" value="' + v + '"></td>').join('')
-        : g.q.map(v => '<td class="num">' + v + '</td>').join('')) +
-      '<td class="num"><strong>' + g.final + '</strong></td>' +
-      '<td><span class="pill ' + g.pill + '">' + g.remarks + '</span></td></tr>'
+        ? g.q.map((v, qi) => '<td class="num"><input class="input input-sm num-in" type="number" min="0" max="100" data-gsub="' + esc(g.name) +                '" data-gq="' + qi + '" value="' + (v == null ? '' : v) + '" placeholder="-"></td>').join('')
+        : g.q.map(v => '<td class="num">' + (v == null ? '\u2014' : v) + '</td>').join('')) +
+      '<td class="num"><strong>' + (g.final == null ? '\u2014' : g.final) + '</strong></td>' +
+      '<td>' + (g.pill ? '<span class="pill ' + g.pill + '">' + esc(g.remarks) + '</span>' : '\u2014') + '</td></tr>'
     ).join('');
-    $('gradeFootAvg').textContent = avg;
+    $('gradeFootAvg').textContent = avg == null ? '\u2014' : avg;
     $('gradeFootRemarks').textContent = standing;
 
     if (!isAdmin) {
-      $('sumAverage').textContent = avg;
-      $('sumAverageSub').textContent = standing + ' \u00b7 adviser: ' + adviser;
+      $('sumAverage').textContent = avg == null ? '\u2014' : avg;
+      $('sumAverageSub').textContent = (avg == null ? 'grades not posted yet' : standing) + ' \u00b7 adviser: ' + adviser;
     }
     return avg;
   }
@@ -1255,7 +1413,7 @@
     $('gradesAdmin').hidden = false;
     const list = studentsInScope();
     $('gradesStudentSel').innerHTML = list.map(a =>
-      '<option value="' + esc(a.id) + '">' + esc(nameOf(a)) + ' \u2014 ' + esc((a.student && a.student.section) || 'Section') + '</option>'
+      '<option value="' + esc(a.id) + '">' + esc(nameOf(a)) + ' \u2014 ' + esc((a.student && a.student.section) || (a.student && a.student.gradeLevel) || 'Student') + '</option>'
     ).join('') || '<option>No students in this class</option>';
     $('gradesStudentSel').addEventListener('change', (e) => {
       gradesTargetId = e.target.value;
@@ -1276,16 +1434,17 @@
       const record = map[t.id] || {};
       let ok = true;
       document.querySelectorAll('[data-gsub]').forEach(inp => {
-        const v = parseFloat(inp.value);
-        const bad = isNaN(v) || v < 0 || v > 100;
+        const raw = String(inp.value).trim();
+        const blank = raw === '';
+        const v = parseFloat(raw);
+        const bad = !blank && (isNaN(v) || v < 0 || v > 100);
         inp.classList.toggle('invalid', bad);
-        if (bad) ok = false;
-        else {
-          if (!record[inp.dataset.gsub]) record[inp.dataset.gsub] = [0, 0, 0, 0];
-          record[inp.dataset.gsub][Number(inp.dataset.gq)] = v;
-        }
+        if (bad) { ok = false; return; }
+        const subj = inp.dataset.gsub;
+        if (!record[subj]) record[subj] = [null, null, null, null];
+        record[subj][Number(inp.dataset.gq)] = blank ? null : v;
       });
-      if (!ok) { NBANA.toast('Grades must be numbers from 0 to 100.', 'error'); return; }
+      if (!ok) { NBANA.toast('Marks must be blank or numbers from 0 to 100.', 'error'); return; }
       map[t.id] = record;
       saveMap(K.grades, map);
       gradeEditing = false; gradeEditButtons();
@@ -1313,34 +1472,13 @@
   }
 
   function computeAttendance(acct) {
+    /* Attendance is never invented either: nothing shows until the adviser
+       or the admin records school days. */
     const stored = loadMap(K.attendance)[acct.id];
-    if (stored) {
-      return stored.map(d => ({
-        date: new Date(d.date + 'T00:00:00'), iso: d.date, status: d.status, time: d.time || '\u2014'
-      }));
-    }
-    const rng = makeRng(seedOf(acct.id + 'attendance'));
-    const days = [];
-    const d = new Date();
-    d.setDate(d.getDate() - 1);
-    while (days.length < 15) {
-      const dow = d.getDay();
-      if (dow !== 0 && dow !== 6) {
-        const r = rng();
-        const status = r < 0.86 ? 'Present' : (r < 0.94 ? 'Late' : 'Absent');
-        let time = '\u2014';
-        if (status === 'Present') {
-          const m = 18 + Math.floor(rng() * 16);
-          time = '7:' + (m < 10 ? '0' + m : m) + ' AM';
-        } else if (status === 'Late') {
-          const m = 46 + Math.floor(rng() * 13);
-          time = m >= 60 ? '8:' + (m - 60 < 10 ? '0' + (m - 60) : m - 60) + ' AM' : '7:' + m + ' AM';
-        }
-        days.push({ date: new Date(d), iso: localISO(d), status, time });
-      }
-      d.setDate(d.getDate() - 1);
-    }
-    return days;
+    if (!stored || !stored.length) return [];
+    return stored.map(d => ({
+      date: new Date(d.date + 'T00:00:00'), iso: d.date, status: d.status, time: d.time || '\u2014'
+    }));
   }
 
   const ATT_STATUSES = ['Present', 'Late', 'Absent'];
@@ -1355,12 +1493,13 @@
     const present = days.filter(x => x.status === 'Present').length;
     const late = days.filter(x => x.status === 'Late').length;
     const absent = days.filter(x => x.status === 'Absent').length;
-    const rate = Math.round(((present + late) / days.length) * 100);
+    const rate = days.length ? Math.round(((present + late) / days.length) * 100) : null;
+    const noRecord = days.length === 0;
 
-    $('attPresent').textContent = present;
-    $('attAbsent').textContent = absent;
-    $('attLate').textContent = late;
-    $('attRate').textContent = rate + '%';
+    $('attPresent').textContent = noRecord ? '\u2014' : present;
+    $('attAbsent').textContent = noRecord ? '\u2014' : absent;
+    $('attLate').textContent = noRecord ? '\u2014' : late;
+    $('attRate').textContent = rate == null ? '\u2014' : rate + '%';
 
     const rowsHtml = days.map(x => {
       const dateStr = x.date.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -1384,7 +1523,12 @@
         ATT_STATUSES.map(s => '<option>' + s + '</option>').join('') + '</select></td>' +
         '<td colspan="2"><button type="button" class="btn-sm solid" id="btnAttAdd">+ Add school day</button></td></tr>'
       : '';
-    $('attRows').innerHTML = rowsHtml + addRow;
+    $('attRows').innerHTML =
+      (noRecord && !attEditing
+        ? '<tr><td colspan="4"><div class="empty-state">No attendance recorded yet. ' +
+          (isAdmin ? 'Use \u201cMark attendance\u201d to add school days.' : 'Your adviser has not recorded school days yet.') +
+          '</div></td></tr>'
+        : '') + rowsHtml + addRow;
 
     if (attEditing) {
       document.querySelectorAll('[data-atdel]').forEach(b => {
@@ -1413,8 +1557,10 @@
     }
 
     if (!isAdmin) {
-      $('sumAttendance').textContent = rate + '%';
-      $('sumAttendanceSub').textContent = present + late + ' of ' + days.length + ' school days attended';
+      $('sumAttendance').textContent = rate == null ? '\u2014' : rate + '%';
+      $('sumAttendanceSub').textContent = rate == null
+        ? 'no attendance recorded yet'
+        : present + late + ' of ' + days.length + ' school days attended';
     }
   }
 
@@ -1429,7 +1575,7 @@
     $('attAdmin').hidden = false;
     const list = studentsInScope();
     $('attStudentSel').innerHTML = list.map(a =>
-      '<option value="' + esc(a.id) + '">' + esc(nameOf(a)) + ' \u2014 ' + esc((a.student && a.student.section) || 'Section') + '</option>'
+      '<option value="' + esc(a.id) + '">' + esc(nameOf(a)) + ' \u2014 ' + esc((a.student && a.student.section) || (a.student && a.student.gradeLevel) || 'Student') + '</option>'
     ).join('') || '<option>No students in this class</option>';
     $('attStudentSel').addEventListener('change', (e) => {
       attTargetId = e.target.value;
@@ -1545,7 +1691,7 @@
 
     $('schedSub').textContent = isAdmin
       ? gl + ' \u00b7 adviser: ' + adviserFor(gl)
-      : gradeLevel + ' \u00b7 ' + section + ' \u00b7 adviser: ' + adviser;
+      : [gradeLevel, section, 'adviser: ' + adviser].filter(Boolean).join(' \u00b7 ');
   }
 
   function schedEditButtons() {
@@ -1853,7 +1999,6 @@
     $('profStudent').innerHTML =
       row('Learner Reference No.', st.lrn) +
       row('Grade level', st.gradeLevel) +
-      row('Section', st.section) +
       row('School year', st.schoolYear) +
       row('Semester', st.semester) +
       row('Adviser', adviser);
@@ -2188,7 +2333,7 @@
   function fillStudentSelects() {
     const scoped = studentsInScope();
     const scopedOpts = scoped.map(a =>
-      '<option value="' + esc(a.id) + '">' + esc(nameOf(a)) + ' \u2014 ' + esc((a.student && a.student.section) || 'Section') + '</option>'
+      '<option value="' + esc(a.id) + '">' + esc(nameOf(a)) + ' \u2014 ' + esc((a.student && a.student.section) || (a.student && a.student.gradeLevel) || 'Student') + '</option>'
     ).join('') || '<option>No students in this class</option>';
     $('gradesStudentSel').innerHTML = scopedOpts;
     $('attStudentSel').innerHTML = scopedOpts;
@@ -2203,29 +2348,66 @@
     }
   }
 
+  /* ---------------- Class list: pick a grade, boys and girls in groups ---------------- */
+  let stuGradeFilter = 'all';
+  function isGirl(a) { return String(a.gender || '').toLowerCase() === 'female'; }
+
+  function stuRowHtml(a) {
+    const s = NBANA.billingSummary(a);
+    const st = a.student || {};
+    const gone = isGraduated(a);
+    const rev = a.photoReview || null;
+    return '<tr><td>' + avatarSpan('st-avatar', nameOf(a), a.photo) + '</td>' +
+      '<td><strong>' + esc(nameOf(a)) + '</strong><br><span class="sc-sub">' + esc(a.email) + '</span>' +
+      (rev && rev.status === 'removed' ? '<br><span class="pill pill-red">Photo removed</span>' : '') +
+      (rev && rev.status === 'ok' ? '<br><span class="pill pill-green">Photo checked</span>' : '') +
+      '</td>' +
+      '<td>' + (gone ? '<span class="pill pill-navy">Graduated</span>' : esc(st.gradeLevel || '\u2014')) + '</td>' +
+      '<td>' + esc(st.lrn || '\u2014') + '</td>' +
+      '<td class="num">' + (s.unset ? '\u2014' : money(s.balance)) + '</td>' +
+      '<td><button type="button" class="btn-sm" data-stuedit="' + esc(a.id) + '">Edit</button>' +
+      (a.photo ? ' <button type="button" class="btn-sm" data-photorev="' + esc(a.id) + '">Photo</button>' : '') +
+      '</td></tr>';
+  }
+
+  function stuGroupRow(label, n) {
+    return '<tr class="stu-group"><td colspan="6"><strong>' + label + '</strong> \u00b7 ' +
+      n + ' student' + (n === 1 ? '' : 's') + '</td></tr>';
+  }
+
   function renderStudents() {
-    const list = allStudents();
+    const all = allStudents();
     const enrolled = activeStudents().length;
-    $('stuCount').textContent = enrolled + ' enrolled student account' + (enrolled === 1 ? '' : 's') +
-      (list.length > enrolled ? ' \u00b7 ' + (list.length - enrolled) + ' graduated' : '') + ' \u00b7 editable records';
-    $('stuRows').innerHTML = list.length ? list.map(a => {
-      const s = NBANA.billingSummary(a);
-      const st = a.student || {};
-      const gone = isGraduated(a);
-      const rev = a.photoReview || null;
-      return '<tr><td>' + avatarSpan('st-avatar', nameOf(a), a.photo) + '</td>' +
-        '<td><strong>' + esc(nameOf(a)) + '</strong><br><span class="sc-sub">' + esc(a.email) + '</span>' +
-        (rev && rev.status === 'removed' ? '<br><span class="pill pill-red">Photo removed</span>' : '') +
-        (rev && rev.status === 'ok' ? '<br><span class="pill pill-green">Photo checked</span>' : '') +
-        '</td>' +
-        '<td>' + (gone ? '<span class="pill pill-navy">Graduated</span>' : esc(st.gradeLevel || '\u2014')) + '</td>' +
-        '<td>' + esc(st.section || '\u2014') + '</td>' +
-        '<td>' + esc(st.lrn || '\u2014') + '</td>' +
-        '<td class="num">' + money(s.balance) + '</td>' +
-        '<td><button type="button" class="btn-sm" data-stuedit="' + esc(a.id) + '">Edit</button>' +
-        (a.photo ? ' <button type="button" class="btn-sm" data-photorev="' + esc(a.id) + '">Photo</button>' : '') +
-        '</td></tr>';
-    }).join('') : '<tr><td colspan="7"><div class="empty-state">No student accounts yet.</div></td></tr>';
+    const list = stuGradeFilter === 'all'
+      ? all
+      : all.filter(a => ((a.student || {}).gradeLevel || '') === stuGradeFilter);
+    const boys = list.filter(a => !isGirl(a));
+    const girls = list.filter(a => isGirl(a));
+
+    $('stuCount').textContent = stuGradeFilter === 'all'
+      ? enrolled + ' enrolled student account' + (enrolled === 1 ? '' : 's') +
+        (all.length > enrolled ? ' \u00b7 ' + (all.length - enrolled) + ' graduated' : '') + ' \u00b7 editable records'
+      : stuGradeFilter + ' \u00b7 ' + list.length + ' student' + (list.length === 1 ? '' : 's') +
+        ' \u00b7 ' + boys.length + ' boy' + (boys.length === 1 ? '' : 's') + ', ' +
+        girls.length + ' girl' + (girls.length === 1 ? '' : 's');
+
+    const note = $('stuFilterNote');
+    if (note) {
+      note.textContent = stuGradeFilter === 'all'
+        ? 'Pick a grade to list boys and girls separately'
+        : boys.length + ' boys above, ' + girls.length + ' girls below \u00b7 alphabetical';
+    }
+
+    if (!list.length) {
+      $('stuRows').innerHTML = '<tr><td colspan="6"><div class="empty-state">No students in ' +
+        esc(stuGradeFilter === 'all' ? 'this school' : stuGradeFilter) + ' yet.</div></td></tr>';
+    } else if (stuGradeFilter === 'all') {
+      $('stuRows').innerHTML = all.map(stuRowHtml).join('');
+    } else {
+      $('stuRows').innerHTML =
+        (boys.length ? stuGroupRow('Boys', boys.length) + boys.map(stuRowHtml).join('') : '') +
+        (girls.length ? stuGroupRow('Girls', girls.length) + girls.map(stuRowHtml).join('') : '');
+    }
 
     document.querySelectorAll('[data-stuedit]').forEach(b => {
       b.addEventListener('click', () => openStuEditor(b.dataset.stuedit));
@@ -2297,50 +2479,178 @@
     });
   }
 
-  /* ---------------- Faculty & staff directory ---------------- */
+  /* ---------------- Faculty & staff directory ----------------
+     The listing the school shows on its Teachers & Staff page (about.html):
+     the administration, then the class advisers, in the same order and with
+     the same photos. Both pages render the same shared faculty list, and a
+     full admin can edit it right here. */
+
+  function facultyAccountFor(f) {
+    const list = NBANA.getAccounts();
+    return list.find(a => a.role === 'teacher' && a.facultyId === f.id) ||
+      list.find(a => a.role === 'teacher' && nameOf(a) === f.name) || null;
+  }
+
+  function facCard(f) {
+    const acct = f.group === 'teacher' ? facultyAccountFor(f) : null;
+    return '<div class="fac-card ' + (f.group === 'teacher' ? 'card-teacher' : 'card-admin') + '">' +
+      '<div class="fac-photo"><img src="' + esc(f.photo || 'logo.png') + '" alt="' + esc(f.name) + '" loading="lazy"></div>' +
+      '<h4>' + esc(f.name) + '</h4>' +
+      '<p class="fac-role">' + esc(f.role || '') + '</p>' +
+      (acct ? '<p class="fac-mail">' + esc(acct.email) + '</p>' : '') +
+      '</div>';
+  }
+
   function renderFaculty() {
-    if (!$('facultyRows')) return;
-    const staff = NBANA.getAccounts().filter(a => a.role === 'teacher' || NBANA.isAdminRole(a.role));
-    const portalPill = '<span class="pill pill-green">Portal account</span>';
-    const rows = [];
-
-    GRADES.forEach(g => {
-      const acct = staff.find(a => a.role === 'teacher' && a.assignedGrade === g);
-      const name = acct ? nameOf(acct) : adviserFor(g);
-      rows.push({
-        name: name,
-        role: 'Class Adviser',
-        grade: g,
-        access: acct ? portalPill + ' <span class="sc-sub">' + esc(acct.email) + '</span>'
-                     : '<span class="pill pill-amber">No portal account yet</span>'
-      });
-    });
-
-    staff.filter(a => NBANA.isAdminRole(a.role)).forEach(a => rows.push({
-      name: nameOf(a),
-      role: a.role === 'principal' ? 'Principal' : 'Administrator',
-      grade: '\u2014',
-      access: portalPill + ' <span class="sc-sub">' + esc(a.email) + '</span>'
-    }));
-
-    staff.filter(a => a.role === 'teacher' && GRADES.indexOf(a.assignedGrade) === -1).forEach(a => rows.push({
-      name: nameOf(a), role: 'Teacher', grade: a.assignedGrade || '\u2014', access: portalPill
-    }));
-
-    $('facultyRows').innerHTML = rows.map(r =>
-      '<tr><td><strong>' + esc(r.name) + '</strong></td><td>' + esc(r.role) + '</td>' +
-      '<td>' + esc(r.grade) + '</td><td>' + r.access + '</td></tr>').join('');
-
-    const advisers = rows.filter(r => r.role === 'Class Adviser' && r.access.indexOf('pill-green') > -1).length;
-    $('facultySub').textContent = GRADES.length + ' grade levels \u00b7 ' + advisers +
-      ' adviser' + (advisers === 1 ? '' : 's') + ' with a portal account';
-
-    const prin = staff.find(a => a.role === 'principal');
+    if (!$('facDirAdmins') && !$('facDirTeachers')) return;
+    const list = NBANA.facultyList();
+    const adminList = list.filter(f => f.group !== 'teacher');
+    const teacherList = list.filter(f => f.group === 'teacher');
+    if ($('facDirAdmins')) $('facDirAdmins').innerHTML = adminList.map(facCard).join('') ||
+      '<p class="sc-sub">No administration listed yet.</p>';
+    if ($('facDirTeachers')) $('facDirTeachers').innerHTML = teacherList.map(facCard).join('') ||
+      '<p class="sc-sub">No teachers listed yet.</p>';
+    if ($('facultySub')) {
+      const withAccount = teacherList.filter(f => facultyAccountFor(f)).length;
+      $('facultySub').textContent = adminList.length + ' administration \u00b7 ' +
+        teacherList.length + ' teaching faculty \u00b7 ' + withAccount + ' with a portal account';
+    }
+    if ($('btnFacEdit')) $('btnFacEdit').hidden = !isPrincipal;
+    const prin = adminList.find(f => /principal/i.test(f.role || '')) || null;
     $('facultyAdmin').innerHTML =
-      row('Principal', prin ? nameOf(prin) : 'School Principal') +
+      row('Principal', prin ? esc(prin.name) : 'School Principal') +
       row('School office', 'Tuition, records, and enrollment concerns') +
       row('Class adviser', 'Your teacher handles daily classroom matters') +
       row('Written concerns', 'Use Contact School to send a message to the office');
+  }
+
+  /* ---------------- Faculty editor (full admin only) ---------------- */
+  let facDraft = null;
+
+  function facEditorRow(f) {
+    const isClassTeacher = f.group === 'teacher';
+    return '<div class="fac-edit-row" data-id="' + esc(f.id) + '" data-group="' + (isClassTeacher ? 'teacher' : 'admin') + '">' +
+      '<input class="input input-sm" data-f="name" placeholder="Full name" value="' + esc(f.name || '') + '">' +
+      '<input class="input input-sm" data-f="role" placeholder="Role / position" value="' + esc(f.role || '') + '">' +
+      (isClassTeacher
+        ? '<select class="input input-sm" data-f="grade"><option value="">No grade</option>' +
+          GRADES.map(g => '<option' + (g === f.grade ? ' selected' : '') + '>' + esc(g) + '</option>').join('') + '</select>'
+        : '<span class="fac-edit-fill"></span>') +
+      '<input class="input input-sm fac-photo-input" data-f="photo" placeholder="teacher1.jpg" value="' + esc(f.photo || '') + '">' +
+      '<button type="button" class="btn-sm danger" data-facdel="' + esc(f.id) + '">Remove</button>' +
+      '</div>';
+  }
+
+  function renderFacEditor() {
+    if (!facDraft) return;
+    if ($('facEditAdmins')) $('facEditAdmins').innerHTML = facDraft.filter(f => f.group !== 'teacher').map(facEditorRow).join('') ||
+      '<p class="sc-sub">Nothing listed under Administration. Use \u201c+ Add administration\u201d.</p>';
+    if ($('facEditTeachers')) $('facEditTeachers').innerHTML = facDraft.filter(f => f.group === 'teacher').map(facEditorRow).join('') ||
+      '<p class="sc-sub">No teachers listed. Use \u201c+ Add teacher\u201d.</p>';
+  }
+
+  /* Read what is on screen so Add / Remove never lose unsaved typing */
+  function facCollect() {
+    const out = [];
+    [['facEditAdmins', 'admin', 0], ['facEditTeachers', 'teacher', 100]].forEach(([id, group, base]) => {
+      const wrap = $(id);
+      if (!wrap) return;
+      wrap.querySelectorAll('.fac-edit-row').forEach((r, i) => {
+        const val = (k) => {
+          const el = r.querySelector('[data-f="' + k + '"]');
+          return el ? String(el.value || '').trim() : '';
+        };
+        out.push({
+          id: r.dataset.id,
+          group: group,
+          order: base + i + 1,
+          name: val('name'),
+          role: val('role'),
+          grade: group === 'teacher' ? val('grade') : undefined,
+          photo: val('photo')
+        });
+      });
+    });
+    return out;
+  }
+
+  function openFacEditor() {
+    if (!isPrincipal) return;
+    facDraft = NBANA.facultyList().map(f => Object.assign({}, f));
+    renderFacEditor();
+    $('facEditor').hidden = false;
+    $('facEditor').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function closeFacEditor() { $('facEditor').hidden = true; facDraft = null; }
+
+  function facMarkNames() {
+    let firstBad = null;
+    document.querySelectorAll('#facEditAdmins .fac-edit-row, #facEditTeachers .fac-edit-row').forEach((r) => {
+      const el = r.querySelector('[data-f="name"]');
+      const ok = !!(el && el.value.trim());
+      if (el) el.classList.toggle('invalid', !ok);
+      if (!ok && !firstBad) firstBad = el;
+    });
+    return firstBad;
+  }
+
+  function facultyInit() {
+    if (!isPrincipal) return;
+    if ($('btnFacEdit')) $('btnFacEdit').addEventListener('click', openFacEditor);
+    if ($('btnFacClose')) $('btnFacClose').addEventListener('click', closeFacEditor);
+    if ($('btnFacCancel')) $('btnFacCancel').addEventListener('click', closeFacEditor);
+
+    const addMember = (group) => {
+      facDraft = facCollect();
+      facDraft.push({
+        id: 'fac_' + group + '_' + Date.now().toString(36),
+        group: group,
+        order: 0,
+        name: '',
+        role: group === 'teacher' ? 'Class Teacher' : '',
+        grade: '',
+        photo: ''
+      });
+      renderFacEditor();
+      const last = (group === 'teacher' ? $('facEditTeachers') : $('facEditAdmins'));
+      const input = last ? last.querySelector('.fac-edit-row:last-child [data-f="name"]') : null;
+      if (input) input.focus();
+    };
+    if ($('btnFacAddAdmin')) $('btnFacAddAdmin').addEventListener('click', () => addMember('admin'));
+    if ($('btnFacAddTeacher')) $('btnFacAddTeacher').addEventListener('click', () => addMember('teacher'));
+
+    if ($('facEditor')) $('facEditor').addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-facdel]');
+      if (!btn || !facDraft) return;
+      facDraft = facCollect().filter(f => f.id !== btn.dataset.facdel);
+      renderFacEditor();
+      NBANA.toast('Removed from the list. Nothing is saved until you press Save faculty.');
+    });
+
+    if ($('btnFacSave')) $('btnFacSave').addEventListener('click', () => {
+      const bad = facMarkNames();
+      if (bad) { bad.focus(); NBANA.toast('Every faculty member needs a name.', 'error'); return; }
+      const list = facCollect();
+      /* Keep the label in step when only the grade was changed:
+         "Grade 5 Teacher" becomes "Grade 6 Teacher" on reassignment. */
+      list.forEach(f => {
+        if (f.group !== 'teacher' || !f.grade) return;
+        if (/^(Kinder [\d]+|Grade [\d]+) Teacher$/.test(f.role || '')) f.role = f.grade + ' Teacher';
+      });
+      NBANA.saveFaculty(list);
+      /* Keeps the teacher accounts in step: new hires get an account, and a
+         teacher moved to another grade now handles that grade's class. */
+      const res = NBANA.seedFaculty();
+      renderFaculty();
+      renderSchedule();
+      renderTasks();
+      renderProfile();
+      closeFacEditor();
+      NBANA.toast('Faculty list saved' +
+        (res.added ? ' \u00b7 ' + res.added + ' new teacher account' + (res.added === 1 ? '' : 's') + ' created' : '') +
+        ' \u00b7 live on every device.', 'success');
+    });
   }
 
   function toggleRoleFields() {
@@ -2392,6 +2702,12 @@
     if (!isPrincipal) return;
     $('sfGrade').innerHTML = gradeOptionsHtml();
     $('sfTGrade').innerHTML = gradeOptionsHtml();
+    $('stuGradeSel').innerHTML = '<option value="all">All grades</option>' +
+      GRADES.map(g => '<option value="' + esc(g) + '">' + esc(g) + '</option>').join('');
+    $('stuGradeSel').addEventListener('change', (e) => {
+      stuGradeFilter = e.target.value;
+      renderStudents();
+    });
     fillStudentSelects();
     renderStudents();
 
@@ -2624,11 +2940,9 @@
 
     let cards, actions, bannerText;
     if (isPrincipal) {
-      const receivable = students.reduce((sum, a) => sum + NBANA.billingSummary(a).balance, 0);
       cards = [
         { icon: '&#10003;', label: 'Students', value: students.length, sub: 'enrolled portal accounts' },
         { icon: '&#9733;', label: 'Teachers', value: teachers.length, sub: 'faculty with portal access' },
-        { icon: '&#8369;', label: 'Tuition receivable', value: money(Math.round(receivable)), sub: 'unpaid balances, all grades' },
         { icon: '&#9993;', label: 'Announcements', value: feed.length, sub: 'posts on the school feed' }
       ];
       actions = [
@@ -2641,13 +2955,13 @@
     } else {
       const mine = studentsInScope();
       const avgs = mine.map(a => {
-        const g = computeGrades(a);
-        return Math.round(g.reduce((s, x) => s + x.final, 0) / g.length);
-      });
-      const classAvg = avgs.length ? Math.round(avgs.reduce((s, x) => s + x, 0) / avgs.length) : 0;
+        const g = computeGrades(a).filter(x => x.final !== null);
+        return g.length ? Math.round(g.reduce((s, x) => s + x.final, 0) / g.length) : null;
+      }).filter(v => v != null);
+      const classAvg = avgs.length ? Math.round(avgs.reduce((s, x) => s + x, 0) / avgs.length) : null;
       cards = [
         { icon: '&#10003;', label: 'My students', value: mine.length, sub: teacherGrade + ' class' },
-        { icon: '&#9733;', label: 'Class average', value: avgs.length ? classAvg : '\u2014', sub: 'general average, all subjects' },
+        { icon: '&#9733;', label: 'Class average', value: avgs.length ? classAvg : '\u2014', sub: avgs.length ? 'general average, all subjects' : 'grades not posted yet' },
         { icon: '&#9776;', label: 'Assignments', value: gradeAssignments(teacherGrade).length, sub: 'posted to your class' },
         { icon: '&#9993;', label: 'Feed posts', value: feed.length, sub: 'visible to you' }
       ];
@@ -2659,6 +2973,8 @@
       ];
       bannerText = 'Teacher account \u00b7 ' + teacherGrade + ' \u00b7 You can edit grades, attendance, schedule, and assignments for your class only. Tuition is managed by the administration.';
     }
+
+    const announcements = feed.filter(p => NBANA.isAdminRole(p.role)).slice(0, 3);
 
     box.innerHTML =
       '<div class="welcome-banner">' +
@@ -2677,17 +2993,23 @@
         '<div class="panel-body" style="display:flex;flex-direction:column;gap:10px">' +
         actions.map((a, i) => '<button type="button" class="btn-sm' + (i === 0 ? ' solid' : '') + '" data-goto="' + a[0] + '">' + a[1] + '</button>').join('') +
         '</div></div>' +
-        '<div class="panel"><div class="panel-head"><div><h3>Latest announcements</h3><span class="sub">School feed</span></div>' +
+        '<div class="panel"><div class="panel-head"><div><h3>Latest announcements</h3><span class="sub">Official posts from the school</span></div>' +
         '<button type="button" class="btn-sm" data-goto="news">See all</button></div>' +
         '<div class="panel-body flush feed">' +
-        (feed.length ? feed.slice(0, 3).map(p => postHtml(p)).join('') : NEWS.slice(0, 2).map(newsItemHtml).join('')) +
+        (announcements.length ? announcements.map(p => postHtml(p)).join('') : NEWS.slice(0, 2).map(newsItemHtml).join('')) +
         '</div></div>' +
+      '</div>' +
+      '<div class="panel" id="adminPerfPanel">' +
+        '<div class="panel-head"><div><h3>Student performance</h3><span class="sub" id="adminPerfSub">Class standing</span></div>' +
+        '<button type="button" class="btn-sm" data-goto="grades">Open grades</button></div>' +
+        '<div class="panel-body" id="adminPerf"></div>' +
       '</div>';
     mediaHydrate(box);
 
     box.querySelectorAll('[data-goto]').forEach(b => {
       b.addEventListener('click', () => setView(b.dataset.goto));
     });
+    renderDashPerf();
   }
 
   /* ============================================================
@@ -2923,8 +3245,9 @@
   /* ============================================================
      Messages - student <-> teacher chat, monitored by the principal
      ============================================================ */
-  let activeThreadKey = null;
-  let adminChatMode = 'threads';   /* principal view: 'threads' (monitoring) or 'concerns' */
+  /* Restored from the last visit so a refresh keeps the same conversation open */
+  let activeThreadKey = lsGet(K.thread) || null;
+  let adminChatMode = lsGet(K.chatMode) === 'concerns' ? 'concerns' : 'threads';
   let activeConcernId = null;
 
   function loadThreads() { return NBANA.store.get(K.threads, {}) || {}; }
@@ -3088,6 +3411,7 @@
     if (!contacts.some(c => c.threadKey === activeThreadKey)) {
       activeThreadKey = contacts.length ? contacts[0].threadKey : null;
     }
+    lsSet(K.thread, activeThreadKey || '');
 
     const all = loadThreads();
     const cur = activeThreadKey ? all[activeThreadKey] : null;
@@ -3190,8 +3514,13 @@
     /* The principal can switch the Messages view between monitoring and concerns */
     if (isPrincipal && $('monitorSwitch')) {
       $('monitorSwitch').hidden = false;
+      /* the switch remembers its position, so paint it from the restored mode */
+      $('monitorSwitch').querySelectorAll('.ms-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.mode === adminChatMode);
+      });
       $('monitorSwitch').querySelectorAll('.ms-btn').forEach(b => b.addEventListener('click', () => {
         adminChatMode = b.dataset.mode;
+        lsSet(K.chatMode, adminChatMode);
         $('monitorSwitch').querySelectorAll('.ms-btn').forEach(x => x.classList.toggle('active', x === b));
         $('chatInput').placeholder = 'Aa';
         renderMessages();
@@ -3379,10 +3708,11 @@
   concernsInit();
   profileInit();
   renderFaculty();
+  facultyInit();
 
   if (isAdmin) {
     renderAdminDash();
-    feesInit();
+    if (canSeeFees) feesInit();
     gradesInit();
     attInit();
     schedInit();
@@ -3393,12 +3723,13 @@
     renderApprovals();
   }
 
-  renderFees();
+  if (canSeeFees) renderFees();
   renderGrades();
   renderAttendance();
   renderSchedule();
   renderTasks();
   renderProfile();
   notifInit();
-  setView('news');
+  if (!isAdmin) renderDashPerf();
+  setView(savedView() || 'news');
 })();
