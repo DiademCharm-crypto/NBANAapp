@@ -7,7 +7,7 @@
   const user = NBANA.currentUser();
   if (!user) {
     NBANA.toast('Please sign in to open the school portal.', 'error');
-    window.location.replace('login.html');
+    window.location.replace(NBANA.appUrl('login.html'));
     return;
   }
 
@@ -149,7 +149,7 @@
   $('logoutBtn').addEventListener('click', () => {
     NBANA.store.del(NBANA.KEYS.session);
     NBANA.toast('You have been signed out.');
-    setTimeout(() => { window.location.href = 'login.html'; }, 400);
+    setTimeout(() => { window.location.href = NBANA.appUrl('login.html'); }, 400);
   });
 
   /* ---------------- Header chips ---------------- */
@@ -331,6 +331,10 @@
     if (list.length === 1 && list[0].kind === 'video') {
       return '<video class="fp-video" controls preload="metadata"' + mediaAttrs(list[0]) + '></video>';
     }
+    /* Four tiles at most, like Facebook — the last one shows how many more
+       photos are waiting, and tapping it opens the full viewer. */
+    const shown = list.slice(0, 4);
+    const extra = list.length - shown.length;
     const cell = (m, i) =>
       '<figure class="fp-media" data-idx="' + i + '">' +
         '<div class="fp-thumb" data-open="' + esc(p.id) + '|' + i + '">' +
@@ -341,9 +345,10 @@
             : (m.legacy
                 ? '<img src="' + p.photo + '" alt="School event photo">'
                 : '<img' + mediaAttrs(m) + ' alt="School event photo">')) +
+          (extra > 0 && i === shown.length - 1 ? '<span class="fp-more">+' + extra + '</span>' : '') +
         '</div>' +
       '</figure>';
-    return '<div class="fp-grid n' + Math.min(list.length, 4) + '">' + list.map(cell).join('') + '</div>';
+    return '<div class="fp-grid n' + Math.min(shown.length, 4) + '">' + shown.map(cell).join('') + '</div>';
   }
 
   function migrateFeedPhotos() {
@@ -360,30 +365,83 @@
       .catch(() => {});
   }
 
-  function openLightbox(postId, idx) {
-    const p = loadFeed().find((x) => x.id === postId);
-    const lb = $('lightbox');
-    const stage = $('lbStage');
-    if (!p || !lb || !stage) return;
-    const list = p.media || (p.photo ? [{ key: 'legacy-' + p.id, kind: 'photo', legacy: true }] : []);
-    const m = list[idx];
+  /* Post media viewer, Facebook-style: opens on the photo you tapped and
+     pages through every photo/video in that post (arrows, keyboard, swipe). */
+  let lbPost = null;
+  let lbIdx = 0;
+
+  function lbList(post) {
+    return post.media || (post.photo ? [{ key: 'legacy-' + post.id, kind: 'photo', legacy: true }] : []);
+  }
+
+  function lbRender() {
+    const lb = $('lightbox'), stage = $('lbStage');
+    if (!lb || !stage || !lbPost) return;
+    const list = lbList(lbPost);
+    const m = list[lbIdx];
     if (!m) return;
-    const close = () => { lb.hidden = true; stage.innerHTML = ''; };
-    $('lbClose').onclick = close;
-    lb.onclick = (ev) => { if (ev.target === lb) close(); };
-    stage.innerHTML = '';
-    const getUrl = m.url ? Promise.resolve(m.url)
-      : (m.legacy ? Promise.resolve(p.photo) : new Promise((res) => mediaUrl(m.key, res)));
-    getUrl.then((u) => {
-      if (!u) { close(); return; }
+    const many = list.length > 1;
+    if ($('lbPrev')) $('lbPrev').hidden = !many;
+    if ($('lbNext')) $('lbNext').hidden = !many;
+    const getUrl = (item) => item.url ? Promise.resolve(item.url)
+      : (item.legacy ? Promise.resolve(lbPost.photo) : new Promise((res) => mediaUrl(item.key, res)));
+    getUrl(m).then((u) => {
+      if (!u || lb.hidden) return;
       stage.innerHTML = m.kind === 'video'
         ? '<video src="' + u + '" controls autoplay playsinline></video>'
         : '<img src="' + u + '" alt="School event photo">' +
-          (list.length > 1 ? '<span class="lb-count">' + (idx + 1) + ' / ' + list.length + '</span>' : '');
-      lb.hidden = false;
+          (many ? '<span class="lb-count">' + (lbIdx + 1) + ' / ' + list.length + '</span>' : '');
     });
-    lb.dataset.open = '1';
   }
+
+  function lbStep(delta) {
+    if (!lbPost) return;
+    const total = lbList(lbPost).length;
+    if (total < 2) return;
+    lbIdx = (lbIdx + delta + total) % total;
+    lbRender();
+  }
+
+  function closeLightbox() {
+    const lb = $('lightbox'), stage = $('lbStage');
+    if (stage) stage.innerHTML = '';
+    if (lb) lb.hidden = true;
+    lbPost = null;
+  }
+
+  function openLightbox(postId, idx) {
+    const p = loadFeed().find((x) => x.id === postId);
+    const lb = $('lightbox');
+    if (!p || !lb) return;
+    const list = lbList(p);
+    if (!list.length) return;
+    lbPost = p;
+    lbIdx = Math.min(Math.max(0, Number(idx) || 0), list.length - 1);
+    lb.hidden = false;
+    lbRender();
+  }
+
+  /* Viewer controls are wired once — the lightbox markup never changes */
+  (function lightboxInit() {
+    const lb = $('lightbox');
+    if (!lb) return;
+    const close = $('lbClose');
+    if (close) close.addEventListener('click', closeLightbox);
+    lb.addEventListener('click', (ev) => { if (ev.target === lb) closeLightbox(); });
+    if ($('lbPrev')) $('lbPrev').addEventListener('click', () => lbStep(-1));
+    if ($('lbNext')) $('lbNext').addEventListener('click', () => lbStep(1));
+    const stage = $('lbStage');
+    let touchX = null;
+    if (stage) {
+      stage.addEventListener('touchstart', (e) => { touchX = e.changedTouches[0].clientX; }, { passive: true });
+      stage.addEventListener('touchend', (e) => {
+        if (touchX === null) return;
+        const dx = e.changedTouches[0].clientX - touchX;
+        touchX = null;
+        if (Math.abs(dx) > 45) lbStep(dx < 0 ? 1 : -1);
+      }, { passive: true });
+    }
+  })();
   document.addEventListener('click', (e) => {
     const t = e.target && e.target.closest ? e.target.closest('[data-open]') : null;
     if (t) openLightboxTap(t);
@@ -393,9 +451,11 @@
     openLightbox(parts[0], Number(parts[1] || 0));
   }
   document.addEventListener('keydown', (e) => {
-    if (e.key !== 'Escape') return;
     const lb = $('lightbox');
-    if (lb && !lb.hidden) { lb.hidden = true; $('lbStage').innerHTML = ''; }
+    if (!lb || lb.hidden) return;
+    if (e.key === 'Escape') closeLightbox();
+    else if (e.key === 'ArrowLeft') lbStep(-1);
+    else if (e.key === 'ArrowRight') lbStep(1);
   });
 
   function nowStamp() { return new Date().toISOString(); }
@@ -1815,6 +1875,140 @@
       row('Account status', '<span class="pill pill-green">Active</span>');
   }
 
+  /* ---------------- Profile picture cropper -------------
+     Facebook-style: adjust the chosen photo inside a square (drag to move,
+     slide or scroll to zoom). The saved picture is a square image, and every
+     avatar in the portal displays it as a circle. */
+  const CROP_SIZE = 512;
+  const cropState = { img: null, zoom: 1, x: 0, y: 0, base: 1, stageW: 0, stageH: 0, drag: null, onSave: null };
+
+  function cropDraw() {
+    const stage = $('cropStage'), canvas = $('cropCanvas'), s = cropState;
+    if (!stage || !canvas || !s.img) return;
+    const dpr = window.devicePixelRatio || 1;
+    const w = Math.max(1, Math.round(s.stageW));
+    const h = Math.max(1, Math.round(s.stageH));
+    if (canvas.width !== w * dpr || canvas.height !== h * dpr) { canvas.width = w * dpr; canvas.height = h * dpr; }
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    ctx.drawImage(s.img, s.x, s.y, s.img.naturalWidth * s.base * s.zoom, s.img.naturalHeight * s.base * s.zoom);
+  }
+
+  /* Keep the picture covering the square, then paint the preview */
+  function cropRender() {
+    const s = cropState;
+    if (!s.img) return;
+    const scale = s.base * s.zoom;
+    const w = s.img.naturalWidth * scale;
+    const h = s.img.naturalHeight * scale;
+    s.x = Math.max(Math.min(0, s.stageW - w), Math.min(0, s.x));
+    s.y = Math.max(Math.min(0, s.stageH - h), Math.min(0, s.y));
+    cropDraw();
+  }
+
+  /* Zoom around the middle of the square so the subject stays put */
+  function cropSetZoom(next) {
+    const s = cropState;
+    if (!s.img) return;
+    const z = Math.max(1, Math.min(3, next));
+    const prev = s.base * s.zoom;
+    const cx = (s.stageW / 2 - s.x) / prev;
+    const cy = (s.stageH / 2 - s.y) / prev;
+    s.zoom = z;
+    const now = s.base * s.zoom;
+    s.x = s.stageW / 2 - cx * now;
+    s.y = s.stageH / 2 - cy * now;
+    if ($('cropZoom')) $('cropZoom').value = String(Math.round(z * 100));
+    cropRender();
+  }
+
+  function cropClose() {
+    const wrap = $('cropWrap'), stage = $('cropStage');
+    if (wrap) wrap.hidden = true;
+    if (stage) stage.classList.remove('dragging');
+    cropState.img = null;
+    cropState.drag = null;
+  }
+
+  function cropOpen(dataUrl, onSave) {
+    const wrap = $('cropWrap'), stage = $('cropStage');
+    if (!wrap || !stage) return;
+    const img = new Image();
+    img.onload = () => {
+      cropState.img = img;
+      cropState.zoom = 1;
+      cropState.drag = null;
+      cropState.onSave = onSave;
+      wrap.hidden = false;
+      const rect = stage.getBoundingClientRect();
+      cropState.stageW = rect.width || 320;
+      cropState.stageH = rect.height || 320;
+      cropState.base = Math.max(cropState.stageW / img.naturalWidth, cropState.stageH / img.naturalHeight);
+      cropState.x = (cropState.stageW - img.naturalWidth * cropState.base) / 2;
+      cropState.y = (cropState.stageH - img.naturalHeight * cropState.base) / 2;
+      if ($('cropZoom')) $('cropZoom').value = '100';
+      cropRender();
+    };
+    img.onerror = () => NBANA.toast('Could not read that image.', 'error');
+    img.src = dataUrl;
+  }
+
+  /* Save exactly the square that is framed, at CROP_SIZE by CROP_SIZE */
+  function cropApply() {
+    const s = cropState;
+    if (!s.img) { cropClose(); return; }
+    const out = document.createElement('canvas');
+    out.width = CROP_SIZE;
+    out.height = CROP_SIZE;
+    const ctx = out.getContext('2d');
+    const scale = s.base * s.zoom;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, CROP_SIZE, CROP_SIZE);
+    ctx.drawImage(s.img, -s.x / scale, -s.y / scale, s.stageW / scale, s.stageH / scale, 0, 0, CROP_SIZE, CROP_SIZE);
+    const data = out.toDataURL('image/jpeg', 0.88);
+    const cb = s.onSave;
+    cropClose();
+    if (cb) cb(data);
+  }
+
+  function cropInit() {
+    const stage = $('cropStage'), wrap = $('cropWrap');
+    if (!stage || !wrap) return;
+    $('cropClose').addEventListener('click', cropClose);
+    $('cropCancel').addEventListener('click', cropClose);
+    $('cropApply').addEventListener('click', cropApply);
+    wrap.addEventListener('click', (e) => { if (e.target === wrap) cropClose(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !wrap.hidden) cropClose(); });
+    if ($('cropZoom')) $('cropZoom').addEventListener('input', () => cropSetZoom(Number($('cropZoom').value) / 100));
+    stage.addEventListener('wheel', (e) => {
+      if (!cropState.img) return;
+      e.preventDefault();
+      cropSetZoom(cropState.zoom + (e.deltaY < 0 ? 0.08 : -0.08));
+    }, { passive: false });
+    stage.addEventListener('pointerdown', (e) => {
+      if (!cropState.img) return;
+      cropState.drag = { cx: e.clientX, cy: e.clientY, ox: cropState.x, oy: cropState.y };
+      stage.classList.add('dragging');
+      try { stage.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+    });
+    stage.addEventListener('pointermove', (e) => {
+      const d = cropState.drag;
+      if (!d) return;
+      cropState.x = d.ox + (e.clientX - d.cx);
+      cropState.y = d.oy + (e.clientY - d.cy);
+      cropRender();
+    });
+    const endDrag = (e) => {
+      if (!cropState.drag) return;
+      cropState.drag = null;
+      stage.classList.remove('dragging');
+      try { stage.releasePointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+    };
+    stage.addEventListener('pointerup', endDrag);
+    stage.addEventListener('pointercancel', endDrag);
+  }
+
   function profileInit() {
     /* Every portal user - students included - may edit their own information */
     $('btnProfEdit').hidden = false;
@@ -1875,17 +2069,24 @@
       NBANA.toast('Profile updated.', 'success');
     });
 
-    /* Profile picture - saved the moment it is chosen */
+    /* Profile picture: crop it inside a square, then show it as a circle
+       everywhere (Facebook-style). See the cropper helpers below. */
+    cropInit();
     $('pfPhoto').addEventListener('change', (e) => {
-      readImage(e.target.files[0], (data) => {
+      const file = e.target.files[0];
+      e.target.value = '';   /* so picking the same file again reopens the cropper */
+      if (!file) return;
+      readImage(file, (data) => {
         if (!data) return;
-        user.photo = data;
-        saveUser(user);
-        paintAvatar();
-        renderProfile();
-        renderFeed();
-        NBANA.toast('Profile picture updated.', 'success');
-      }, 360);
+        cropOpen(data, (cropped) => {
+          user.photo = cropped;
+          saveUser(user);
+          paintAvatar();
+          renderProfile();
+          renderFeed();
+          NBANA.toast('Profile picture updated.', 'success');
+        });
+      }, 1600);
     });
 
     $('btnPhotoRemove').addEventListener('click', () => {

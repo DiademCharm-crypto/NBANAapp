@@ -19,11 +19,21 @@
 </head>
 <body>
 
+  <!-- App launch splash: only shown in app mode, hidden again by app.js -->
+  <div id="splash" hidden>
+    <img src="logo.png" alt="" class="splash-logo">
+    <strong class="splash-name">NBANA Portal</strong>
+    <span class="splash-sub">Norberto Bana Sr. Mem. SDA Elementary School</span>
+    <span class="splash-dots" aria-label="Loading"><i></i><i></i><i></i></span>
+  </div>
+
+  <!-- The logo is deliberately not a link on the portal: tapping it must not
+       dump the user back onto the public website. -->
   <nav class="navbar">
-    <a href="index.html" class="logo">
+    <span class="logo" role="img" aria-label="NBANA Portal">
       <img src="logo.png" alt="NBANA Logo" class="logo-img">
       <span class="school-name">NBANA Portal</span>
-    </a>
+    </span>
     <ul class="nav-links">
       <li><a href="index.html">Home</a></li>
       <li><a href="about.html">About</a></li>
@@ -737,13 +747,39 @@
       </div>
       <nav class="dw-links" id="dwLinks"></nav>
       <button type="button" class="dw-logout dw-install" id="dwInstall" hidden>&#128228; Install app on this phone</button>
+      <a class="dw-logout dw-getapp" href="app.html">&#11015; Get the Android app</a>
       <button type="button" class="dw-logout" id="dwLogout">Log out</button>
     </aside>
   </div>
 
   <div id="lightbox" hidden>
     <button id="lbClose" type="button" title="Close">&times;</button>
+    <button id="lbPrev" class="lb-nav prev" type="button" aria-label="Previous photo" hidden>&#8249;</button>
+    <button id="lbNext" class="lb-nav next" type="button" aria-label="Next photo" hidden>&#8250;</button>
     <div id="lbStage"></div>
+  </div>
+
+  <!-- Square cropper for profile pictures (the saved picture is square,
+       and the portal shows every avatar as a circle, like Facebook) -->
+  <div id="cropWrap" hidden>
+    <div class="crop-card" role="dialog" aria-modal="true" aria-label="Adjust your profile picture">
+      <div class="crop-head">
+        <div><strong>Adjust your picture</strong><span class="sub">Drag to move &middot; slide or scroll to zoom</span></div>
+        <button type="button" class="crop-x" id="cropClose" title="Close" aria-label="Close">&times;</button>
+      </div>
+      <div class="crop-stage" id="cropStage">
+        <canvas id="cropCanvas"></canvas>
+        <span class="crop-ring" aria-hidden="true"></span>
+      </div>
+      <div class="crop-zoom">
+        <span class="s-icon" aria-hidden="true">&#128269;</span>
+        <input type="range" id="cropZoom" min="100" max="300" value="100" aria-label="Zoom">
+      </div>
+      <div class="crop-actions">
+        <button type="button" class="btn-sm" id="cropCancel">Cancel</button>
+        <button type="button" class="btn-sm solid" id="cropApply">Save picture</button>
+      </div>
+    </div>
   </div>
 
   <script src="app.js"></script>

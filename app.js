@@ -143,7 +143,7 @@ const NBANA = (() => {
   }
   function logout() {
     store.del(KEYS.session);
-    window.location.href = 'login.html';
+    window.location.href = appUrl('login.html');
   }
 
   /* ---------- Demo seed ---------- */
@@ -357,7 +357,7 @@ const NBANA = (() => {
       if (out) out.addEventListener('click', () => {
         store.del(KEYS.session);
         toast('You have been signed out.');
-        setTimeout(() => { window.location.href = 'login.html'; }, 400);
+        setTimeout(() => { window.location.href = appUrl('login.html'); }, 400);
       });
     }
 
@@ -436,6 +436,93 @@ const NBANA = (() => {
     document.querySelectorAll('[data-year]').forEach(el => { el.textContent = new Date().getFullYear(); });
   }
 
+  /* ---------- App mode ----------
+     True on a phone-sized screen, in the installed app, or when the URL
+     asks for it (?app=1 — handy for trying the app look on a computer).
+     Pages style themselves differently with this on. */
+  function forceAppMode() { return /[?&](app|standalone)=1/.test(location.search); }
+  function standaloneApp() {
+    return forceAppMode() ||
+      (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
+      (window.matchMedia && window.matchMedia('(display-mode: minimal-ui)').matches) ||
+      window.navigator.standalone === true ||
+      /* A WebView APK that is not a TWA cannot report standalone display mode,
+         so app.html tells the builder to set this user-agent token. */
+      /\bNBANAApp\b/i.test(navigator.userAgent || '');
+  }
+  function appModeOn() { return standaloneApp() || window.innerWidth <= 860; }
+
+  /* Keep the app look while moving between pages: a redirect that drops ?app=1
+     would drop the user back into the website layout. */
+  function appUrl(page) {
+    if (!forceAppMode()) return page;
+    return page + (page.indexOf('?') === -1 ? '?' : '&') + 'app=1';
+  }
+
+  function initAppMode() {
+    const apply = () => document.body.classList.toggle('app-mode', appModeOn());
+    apply();
+    window.addEventListener('resize', apply);
+  }
+
+  /* ---------- Launch splash (app mode only) ---------- */
+  function initSplash() {
+    const el = document.getElementById('splash');
+    if (!el || !appModeOn()) return;
+    el.hidden = false;
+    let finished = false;
+    const finish = () => {
+      if (finished) return;
+      finished = true;
+      el.classList.add('done');
+      setTimeout(() => { el.hidden = true; }, 500);
+    };
+    const seen = new Promise((resolve) => setTimeout(resolve, 1100));
+    const loaded = new Promise((resolve) => {
+      if (document.readyState === 'complete') resolve();
+      else window.addEventListener('load', resolve, { once: true });
+    });
+    Promise.all([seen, loaded]).then(finish);
+    setTimeout(finish, 4000);   /* never hold the app hostage */
+  }
+
+  /* ---------- First-run setup for the installed app ----------
+     A sideloaded Android app needs "install unknown apps" switched on so it
+     can update itself later. A web page cannot read that Android setting, so
+     the app asks the user to confirm it once and blocks use until they do. */
+  const SETUP_KEY = 'nbana.setup.v1';
+
+  function setupGateHtml() {
+    return '<div class="gate-card" role="dialog" aria-modal="true" aria-label="One-time app setup">' +
+      '<h3>One-time setup: allow app updates</h3>' +
+      '<p>So this app can update itself later, Android needs permission to install apps from this source. Please turn it on once \u2014 after that, updates install on their own.</p>' +
+      '<ol class="gate-steps">' +
+        '<li>Open <b>Settings</b> on your phone.</li>' +
+        '<li>Go to <b>Apps</b> \u2192 <b>Special access</b> \u2192 <b>Install unknown apps</b>.</li>' +
+        '<li>Find <b>NBANA Portal</b> \u2014 or the browser you downloaded it with (for example Chrome).</li>' +
+        '<li>Turn <b>Allow from this source</b> on.</li>' +
+        '<li>Come back here and tap the button below.</li>' +
+      '</ol>' +
+      '<p class="gate-note">This is the standard Android step for apps installed outside the Play Store. It is safe, and you can turn it off anytime.</p>' +
+      '<div class="gate-actions"><button type="button" class="btn-sm solid" id="gateDone">I have turned it on</button></div>' +
+      '</div>';
+  }
+
+  function initSetupGate() {
+    if (!standaloneApp()) return;                 /* only inside the installed app */
+    if (store.get(SETUP_KEY, false) === true) return;
+    const gate = document.createElement('div');
+    gate.id = 'setupGate';
+    gate.innerHTML = setupGateHtml();
+    document.body.appendChild(gate);
+    const done = document.getElementById('gateDone');
+    if (done) done.addEventListener('click', () => {
+      store.set(SETUP_KEY, true);
+      gate.remove();
+      toast('Setup complete. This app can now update itself.', 'success');
+    });
+  }
+
   /* ---------- Boot ---------- */
   function init() {
     seedDemo();
@@ -447,6 +534,9 @@ const NBANA = (() => {
       initBackToTop();
       initFaq();
       stampYear();
+      initAppMode();
+      initSplash();
+      initSetupGate();
     });
   }
   init();
@@ -471,6 +561,7 @@ const NBANA = (() => {
     STAFF_CODE, DEFAULT_SCHOOL_YEAR, ROLES,
     isAdminRole, roleLabel, checkStaffCode,
     getSchoolYear, setSchoolYear, nextSchoolYear,
-    rememberPw, decPw
+    rememberPw, decPw,
+    appUrl, appModeOn, standaloneApp, forceAppMode
   };
 })();

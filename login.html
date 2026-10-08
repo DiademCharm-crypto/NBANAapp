@@ -24,12 +24,20 @@
 </head>
 <body>
 
+  <!-- App launch splash: only shown in app mode, hidden again by app.js -->
+  <div id="splash" hidden>
+    <img src="logo.png" alt="" class="splash-logo">
+    <strong class="splash-name">NBANA Portal</strong>
+    <span class="splash-sub">Norberto Bana Sr. Mem. SDA Elementary School</span>
+    <span class="splash-dots" aria-label="Loading"><i></i><i></i><i></i></span>
+  </div>
+
   <!-- Navigation -->
   <nav class="navbar">
-    <a href="index.html" class="logo">
+    <span class="logo" role="img" aria-label="NBANA Portal">
       <img src="logo.png" alt="NBANA Logo" class="logo-img">
       <span class="school-name">NBANA Portal</span>
-    </a>
+    </span>
     <ul class="nav-links">
       <li><a href="index.html">Home</a></li>
       <li><a href="about.html">About</a></li>

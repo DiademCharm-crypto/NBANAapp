@@ -1,8 +1,8 @@
 /* NBANA Portal service worker — makes the installed app open instantly and
    keep working on a weak connection. Bump the cache name to push fresh files. */
-const CACHE = 'nbana-v5';
+const CACHE = 'nbana-v8';
 const CORE = [
-  'portal.html', 'index.html', 'login.html', 'students.html', 'about.html',
+  'portal.html', 'index.html', 'login.html', 'students.html', 'about.html', 'app.html',
   'app.js', 'portal.js', 'login.js', 'portal.css', 'style.css', 'manifest.json',
   'supabase-config.js', 'supabase-sync.js'
 ];

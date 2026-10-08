@@ -6,7 +6,7 @@
 
   /* Already signed in? Go straight to the portal. */
   if (NBANA.currentUser()) {
-    window.location.replace('portal.html');
+    window.location.replace(NBANA.appUrl('portal.html'));
     return;
   }
 
@@ -63,7 +63,7 @@
       return;
     }
     NBANA.toast('Welcome back, ' + res.account.firstName + '!', 'success');
-    setTimeout(() => { window.location.href = 'portal.html'; }, 500);
+    setTimeout(() => { window.location.href = NBANA.appUrl('portal.html'); }, 500);
   });
 
   /* ---------------- Forgot password (school office assists) ----------------
@@ -354,7 +354,7 @@
     const account = NBANA.createAccount(profile, $('f_pw').value);
     NBANA.setSession(account.id);
     NBANA.toast(NBANA.roleLabel(acctRole) + ' account created. Welcome to the portal!', 'success');
-    setTimeout(() => { window.location.href = 'portal.html'; }, 800);
+    setTimeout(() => { window.location.href = NBANA.appUrl('portal.html'); }, 800);
   });
 
   /* Keep the student survey's school year in step with the school calendar */

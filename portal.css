@@ -919,7 +919,7 @@ input.invalid, select.invalid, textarea.invalid { border-color: #e0245e !importa
 
 .prof-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
 
-.prof-photo.big { width: 220px; height: 220px; border-radius: 18px; border-style: solid; }
+.prof-photo.big { width: 220px; height: 220px; border-radius: 50%; border-style: solid; }
 
 .pp-empty { font-size: 0.74rem; color: var(--text-faint); padding: 0 8px; font-weight: 700; text-align: center; }
 
@@ -1259,13 +1259,13 @@ input.invalid, select.invalid, textarea.invalid { border-color: #e0245e !importa
   max-width: 94vw; max-height: 88vh; border-radius: 10px;
   box-shadow: 0 12px 48px rgba(0, 0, 0, .5);
 }
-#lbStage { position: relative; text-align: center; }
+#lbStage { position: relative; text-align: center; z-index: 1; }
 .lb-count {
   display: block; margin-top: 10px; color: #fff; font-size: .85rem; opacity: .85;
 }
 #lbClose {
   position: absolute; top: 12px; right: 16px; background: none; border: none;
-  color: #fff; font-size: 34px; line-height: 1; cursor: pointer;
+  color: #fff; font-size: 34px; line-height: 1; cursor: pointer; z-index: 3;
 }
 #lbClose:hover { color: #7dd3fc; }
 
@@ -1484,3 +1484,252 @@ body.app-mode .portal-main { padding-bottom: 92px; }
 }
 [data-theme="dark"] .fp-status .fp-wait { color: #ffd479; }
 [data-theme="dark"] .fp-status .fp-ok { color: var(--teal); }
+
+/* ============================================================
+   Square cropper for profile pictures
+   Facebook-style: pick a photo, drag/zoom inside a square, and the
+   saved picture is square while every avatar shows it as a circle.
+   ============================================================ */
+/* display:none by default — the [hidden] attribute must beat display:flex,
+   otherwise the empty dialog would sit over the portal on load. */
+#cropWrap {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  background: rgba(6, 18, 34, 0.72);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+#cropWrap:not([hidden]) { display: flex; }
+
+.crop-card {
+  width: min(420px, 100%);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.4);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.crop-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.crop-head strong { display: block; font-size: 1rem; }
+.crop-head .sub { display: block; font-size: 0.78rem; color: var(--text-faint); margin-top: 2px; }
+
+.crop-x {
+  border: none;
+  background: var(--surface-2);
+  color: var(--text);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+  flex: 0 0 32px;
+}
+
+.crop-stage {
+  position: relative;
+  /* width-driven so the square never stretches on short screens */
+  width: min(100%, 56vh);
+  aspect-ratio: 1;
+  margin: 0 auto;
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--navy);
+  touch-action: none;
+  cursor: grab;
+  user-select: none;
+}
+.crop-stage.dragging { cursor: grabbing; }
+.crop-stage canvas { display: block; width: 100%; height: 100%; }
+
+/* Circle guide: the dimmed area outside it is what the round avatar cuts off. */
+.crop-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  box-shadow: 0 0 0 999px rgba(6, 18, 34, 0.55);
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  pointer-events: none;
+}
+
+.crop-zoom { display: flex; align-items: center; gap: 10px; }
+.crop-zoom .s-icon { opacity: 0.7; }
+.crop-zoom input[type="range"] { flex: 1; accent-color: var(--teal); }
+
+.crop-actions { display: flex; justify-content: flex-end; gap: 10px; }
+
+/* ============================================================
+   App launch splash (app mode only — see initSplash in app.js)
+   ============================================================ */
+#splash {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  background: linear-gradient(165deg, #0b1f3a 0%, #123a63 55%, #0aa896 130%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: #fff;
+  text-align: center;
+  padding: 24px;
+  transition: opacity 0.45s ease;
+}
+
+#splash[hidden] { display: none; }
+#splash.done { opacity: 0; pointer-events: none; }
+
+.splash-logo {
+  width: 104px;
+  height: 104px;
+  border-radius: 50%;
+  background: #fff;
+  padding: 6px;
+  box-shadow: 0 20px 46px rgba(0, 0, 0, 0.38);
+  animation: splashPop 0.6s ease;
+}
+
+.splash-name { font-size: 1.55rem; letter-spacing: 0.4px; }
+.splash-sub { font-size: 0.76rem; opacity: 0.82; max-width: 250px; line-height: 1.35; }
+
+.splash-dots { display: flex; gap: 9px; margin-top: 16px; }
+.splash-dots i {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #fff;
+  animation: splashBounce 1s infinite ease-in-out;
+}
+.splash-dots i:nth-child(2) { animation-delay: 0.15s; }
+.splash-dots i:nth-child(3) { animation-delay: 0.3s; }
+
+@keyframes splashBounce {
+  0%, 80%, 100% { transform: translateY(0); opacity: 0.45; }
+  40% { transform: translateY(-9px); opacity: 1; }
+}
+@keyframes splashPop {
+  from { transform: scale(0.72); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+/* ============================================================
+   App mode: the login page shows the sign-in fields only
+   ============================================================ */
+body.app-mode .navbar,
+body.app-mode .auth-brand,
+body.app-mode .auth-tabs,
+body.app-mode .demo-box,
+body.app-mode footer { display: none; }
+
+body.app-mode .auth-wrap { padding: 14px; }
+body.app-mode .auth-panel { width: 100%; }
+body.app-mode .auth-card { border: none; box-shadow: none; background: transparent; padding: 4px; }
+body.app-mode #paneSignIn > .hint { display: none; }
+
+/* ============================================================
+   First-run setup gate for the installed app: app-update permission
+   ============================================================ */
+#setupGate {
+  position: fixed;
+  inset: 0;
+  z-index: 130;
+  background: rgba(6, 18, 34, 0.92);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+}
+
+#setupGate:not([hidden]) { display: flex; }
+
+.gate-card {
+  width: min(470px, 100%);
+  max-height: 88vh;
+  overflow: auto;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 18px;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
+}
+.gate-card h3 { font-size: 1.12rem; margin-bottom: 6px; }
+.gate-card p { font-size: 0.88rem; color: var(--text-faint); margin-bottom: 10px; }
+
+.gate-steps { counter-reset: gs; list-style: none; margin: 12px 0; display: flex; flex-direction: column; gap: 12px; }
+.gate-steps li { position: relative; padding-left: 40px; font-size: 0.86rem; line-height: 1.42; }
+.gate-steps li::before {
+  counter-increment: gs;
+  content: counter(gs);
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 27px;
+  height: 27px;
+  border-radius: 50%;
+  background: var(--teal);
+  color: #fff;
+  font-weight: 800;
+  display: grid;
+  place-items: center;
+  font-size: 0.8rem;
+}
+.gate-steps b { color: var(--navy); }
+[data-theme="dark"] .gate-steps b { color: var(--teal); }
+
+.gate-note { font-size: 0.77rem; color: var(--text-faint); margin-top: 4px; }
+.gate-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
+
+/* ============================================================
+   Facebook-style post media: the 4th cell shows "+N" when there are
+   more photos, and the viewer pages through all of them
+   ============================================================ */
+.fp-more {
+  position: absolute;
+  inset: 0;
+  background: rgba(6, 18, 34, 0.62);
+  color: #fff;
+  font-weight: 800;
+  font-size: 1.45rem;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+
+.lb-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(15, 23, 42, 0.55);
+  color: #fff;
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  z-index: 2;
+  box-shadow: 0 2px 14px rgba(0, 0, 0, 0.45);
+}
+.lb-nav:hover { background: rgba(15, 23, 42, 0.85); }
+.lb-nav.prev { left: 14px; }
+.lb-nav.next { right: 14px; }
+.lb-nav[hidden] { display: none; }
+
+@media (max-width: 560px) {
+  .lb-nav { width: 40px; height: 40px; font-size: 1.25rem; }
+  .lb-nav.prev { left: 8px; }
+  .lb-nav.next { right: 8px; }
+}

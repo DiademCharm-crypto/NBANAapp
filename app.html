@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Get the App | NBANA SDA Elementary School</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" type="image/png" href="logo.png">
+  <link rel="apple-touch-icon" href="logo.png">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0b1f3a">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+  <style>
+    .app-hero { display: flex; gap: 22px; align-items: center; flex-wrap: wrap; margin-bottom: 22px; }
+    .app-hero img { width: 92px; height: 92px; border-radius: 24px; box-shadow: 0 14px 34px rgba(11, 31, 58, .22); }
+    .app-hero h1 { margin-bottom: 6px; }
+    .app-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 18px; }
+    .app-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px;
+    }
+    .app-card h2 { font-size: 1.1rem; margin-bottom: 6px; }
+    .app-card > p { color: var(--text-faint); font-size: .88rem; margin-bottom: 14px; line-height: 1.5; }
+    .app-badge {
+      display: inline-block; font-size: .72rem; font-weight: 800; letter-spacing: .4px;
+      text-transform: uppercase; padding: 4px 10px; border-radius: 999px;
+      background: rgba(10, 168, 150, .14); color: var(--teal-dark); margin-bottom: 10px;
+    }
+    .steps { list-style: none; counter-reset: s; margin: 0 0 6px; display: flex; flex-direction: column; gap: 12px; }
+    .steps li { position: relative; padding-left: 40px; font-size: .88rem; line-height: 1.45; }
+    .steps li::before {
+      counter-increment: s; content: counter(s);
+      position: absolute; left: 0; top: -1px;
+      width: 27px; height: 27px; border-radius: 50%;
+      background: var(--teal); color: #fff; font-weight: 800;
+      display: grid; place-items: center; font-size: .8rem;
+    }
+    .apk-note { font-size: .8rem; color: var(--text-faint); margin-top: 10px; line-height: 1.45; }
+    .apk-help { margin-top: 26px; }
+    .apk-help summary { cursor: pointer; font-weight: 700; font-size: .9rem; }
+    .apk-help ol { margin: 12px 0 0 20px; font-size: .86rem; line-height: 1.7; color: var(--text-faint); }
+    .apk-help code { background: var(--surface-2); padding: 2px 7px; border-radius: 6px; font-size: .82rem; }
+    [data-theme="dark"] .app-badge { color: var(--teal); }
+  </style>
+</head>
+<body>
+
+  <!-- Navigation -->
+  <nav class="navbar">
+    <span class="logo" role="img" aria-label="NBANA Portal">
+      <img src="logo.png" alt="NBANA Logo" class="logo-img">
+      <span class="school-name">NBANA Portal</span>
+    </span>
+    <ul class="nav-links">
+      <li><a href="index.html">Home</a></li>
+      <li><a href="about.html">About</a></li>
+      <li><a href="students.html">Students</a></li>
+      <li><a href="app.html" class="active">Get the app</a></li>
+    </ul>
+    <div class="nav-auth"></div>
+  </nav>
+
+  <main class="container">
+
+    <div class="app-hero">
+      <img src="logo.png" alt="NBANA Portal app icon">
+      <div>
+        <h1>Get the NBANA app</h1>
+        <p>Install the portal on your phone so it opens like an app &mdash; full screen, faster, and it keeps working on a weak signal.</p>
+      </div>
+    </div>
+
+    <div class="app-grid">
+
+      <!-- Android APK -->
+      <section class="app-card" id="apkCard">
+        <span class="app-badge">Android</span>
+        <h2>Install the Android app</h2>
+        <p>Download the installer file (.apk), open it, and Android will ask you to allow installs from this source &mdash; that is normal for apps installed outside the Play Store.</p>
+        <a class="btn btn-primary btn-lg btn-block" id="apkBtn" href="NBANA-app.apk" download hidden>Download for Android (.apk)</a>
+        <div class="apk-note" id="apkMissing" hidden>
+          The Android installer has not been published yet. Use <b>Add to Home Screen</b> below in the meantime &mdash; it gives you the same app.
+        </div>
+      </section>
+
+      <!-- Browser install -->
+      <section class="app-card">
+        <span class="app-badge">iPhone &amp; Android</span>
+        <h2>Add it to your home screen</h2>
+        <p>No download needed. This installs the portal as an app icon using your browser.</p>
+        <ol class="steps">
+          <li><b>Android (Chrome):</b> open <b>nbanaapp.eu.cc</b>, tap the <b>&#8942;</b> menu, then <b>Add to Home screen</b> &rarr; <b>Install</b>.</li>
+          <li><b>iPhone (Safari):</b> open the site, tap <b>Share</b>, scroll down, then <b>Add to Home Screen</b>.</li>
+          <li>Open the new <b>NBANA</b> icon on your home screen and sign in as usual.</li>
+        </ol>
+      </section>
+
+      <!-- Permission tutorial -->
+      <section class="app-card" id="permission">
+        <span class="app-badge">Android app</span>
+        <h2>Turn on app updates</h2>
+        <p>So the app can update itself later without going through the Play Store, Android needs your permission once. The app will guide you the first time you open it.</p>
+        <ol class="steps">
+          <li>Open <b>Settings</b> on your phone.</li>
+          <li>Go to <b>Apps</b> &rarr; <b>Special access</b> &rarr; <b>Install unknown apps</b>.</li>
+          <li>Find <b>NBANA Portal</b> &mdash; or the browser you downloaded it with (for example Chrome).</li>
+          <li>Turn <b>Allow from this source</b> on.</li>
+          <li>Return to the app. Updates will now install on their own.</li>
+        </ol>
+        <p class="apk-note">This setting is standard for Android apps installed outside the Play Store. It is safe and you can switch it off anytime.</p>
+      </section>
+
+    </div>
+
+    <details class="apk-help">
+      <summary>For the school admin: how to build the .apk</summary>
+      <ol>
+        <li>Open <b>pwabuilder.com</b> and enter <code>https://nbanaapp.eu.cc</code>.</li>
+        <li>Click <b>Start</b>. It reads this site's <code>manifest.json</code> and service worker automatically.</li>
+        <li>Choose <b>Package for stores</b> &rarr; <b>Android</b> &rarr; <b>Download</b>. It generates a signed package and the signing key &mdash; keep the key safe for future updates.</li>
+        <li>Rename the file to <code>NBANA-app.apk</code> and save it in this website's folder (next to <code>app.html</code>), then commit and push.</li>
+        <li>Reload this page: the download button appears by itself. Build a fresh APK the same way whenever you want to push an update.</li>
+      </ol>
+      <p class="apk-note">Command-line alternative: <code>npx @bubblewrap/cli init --manifest https://nbanaapp.eu.cc/manifest.json</code> then <code>npx @bubblewrap/cli build</code>.</p>
+      <p class="apk-note">Packing the site in a plain WebView instead? Point it at <code>https://nbanaapp.eu.cc/portal.html?app=1</code> and add the token <code>NBANAApp</code> to the WebView user agent. That is how the app knows it is the app: it keeps the full-screen app layout and shows the one-time update-permission screen on first launch.</p>
+    </details>
+
+  </main>
+
+  <footer>
+    <p>&copy; <span data-year>2026</span> Norberto Bana Sr. Mem. SDA Elementary School. All rights reserved.</p>
+  </footer>
+
+  <script src="app.js"></script>
+  <script>
+    /* Show the download button only once the .apk actually exists in this
+       folder, so visitors never tap a dead link. */
+    (function () {
+      const btn = document.getElementById('apkBtn');
+      const note = document.getElementById('apkMissing');
+      if (!btn || !note) return;
+      fetch('NBANA-app.apk', { method: 'HEAD' })
+        .then(function (res) {
+          if (res.ok) { btn.hidden = false; note.hidden = true; }
+          else { note.hidden = false; }
+        })
+        .catch(function () { note.hidden = false; });
+    })();
+  </script>
+</body>
+</html>
