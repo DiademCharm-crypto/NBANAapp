@@ -798,6 +798,12 @@ const NBANA = (() => {
   function initSplash() {
     const el = document.getElementById('splash');
     if (!el || !appModeOn()) return;
+    /* Only the first page of a browsing session gets the launch splash.
+       Moving from one page to another must never flash a loading screen. */
+    try {
+      if (sessionStorage.getItem('nbana.splash.seen')) return;
+      sessionStorage.setItem('nbana.splash.seen', '1');
+    } catch (e) { /* storage blocked (private mode): show it as before */ }
     el.hidden = false;
     let finished = false;
     const finish = () => {

@@ -30,8 +30,6 @@
 
   const REST = cfg.url.replace(/\/+$/, '') + '/rest/v1/';
   const TABLE = 'nbana_records';
-  const RELOAD_FLAG = 'nbana.cloud.reloaded';
-
   /* ---------------- what syncs, and where it lives locally ----------------
      shape 'list' = stored as an array, 'map' = stored as an object keyed by id. */
   const KINDS = {
@@ -67,7 +65,10 @@
     push: pushItems,
     pushAccount: function (acc) { return pushItems('account', [acc]); },
     pushPost: function (post) { return pushItems('post', [post]); },
-    deletePost: function (id) { return deleteItems('post', [id]); }
+    deletePost: function (id) { return deleteItems('post', [id]); },
+    /* Ask for a fresh pull right now — throttled, so a recent sync makes an
+       immediate repeat a no-op. Used when the user opens another page. */
+    refresh: start
   };
   NBANA.cloud = cloud;
 
@@ -507,21 +508,34 @@
       }
     }
 
-    /* New cloud data needs one clean render, but never a reload loop. */
-    if (changed && !sessionStorage.getItem(RELOAD_FLAG)) {
-      sessionStorage.setItem(RELOAD_FLAG, '1');
-      window.location.reload();
-      return;
+    /* New data gets one clean repaint, never a reload: the pages listen for
+       this and repaint whatever is open, so a merge never flashes the loading
+       popup, jumps to the top or discards half-typed input. */
+    if (changed) {
+      try { window.dispatchEvent(new CustomEvent('nbana:refresh')); } catch (e) { /* no CustomEvent */ }
     }
-    if (!changed) sessionStorage.removeItem(RELOAD_FLAG);
   }
 
-  function start() {
+  /* Pulls are throttled so that switching pages, returning to the tab and the
+     periodic tick all stay cheap. */
+  const PULL_THROTTLE = 8000;
+  let lastRun = 0;
+
+  function start(force) {
+    const now = Date.now();
+    if (!force && now - lastRun < PULL_THROTTLE) return;
+    lastRun = now;
     boot().catch(function (e) { cloud.state.lastError = String((e && e.message) || e); });
   }
 
-  if (document.readyState === 'complete') setTimeout(start, 150);
-  else window.addEventListener('load', function () { setTimeout(start, 150); });
+  if (document.readyState === 'complete') setTimeout(function () { start(); }, 150);
+  else window.addEventListener('load', function () { setTimeout(function () { start(); }, 150); });
 
-  window.addEventListener('online', function () { start(); });
+  window.addEventListener('online', function () { start(true); });
+
+  /* Keep an open portal live: pull again when the tab comes back into view,
+     when the page is restored from the back/forward cache, and on a slow tick. */
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) start(); });
+  window.addEventListener('pageshow', function (e) { if (e.persisted) start(true); });
+  setInterval(function () { if (!document.hidden) start(); }, 45000);
 })();

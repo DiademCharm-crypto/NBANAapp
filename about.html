@@ -263,7 +263,12 @@
       -webkit-backdrop-filter: blur(10px);
       backdrop-filter: blur(10px);
       transition: opacity 0.4s ease, visibility 0.4s ease;
+      /* Hidden until the page has proven it is slow: instant, cached
+         navigations must never flash this overlay. */
+      opacity: 0;
+      visibility: hidden;
     }
+    #pcLoad.on { opacity: 1; visibility: visible; }
     #pcLoad.gone { opacity: 0; visibility: hidden; }
     #pcLoad .pc-load-card { text-align: center; }
     #pcLoad .pc-load-logo {
@@ -483,7 +488,9 @@ Western Mindanao Conference</p>
   <script src="app.js"></script>
 
   <script>
-    /* PC popup loading: desktop only — phones already show the app splash */
+    /* PC popup loading: desktop only — phones already show the app splash.
+       The overlay stays hidden unless the page is genuinely slow to load,
+       so moving between pages never flashes a loading screen. */
     (function () {
       var ov = document.getElementById('pcLoad');
       if (!ov) return;
@@ -491,10 +498,23 @@ Western Mindanao Conference</p>
         if (ov.parentNode) ov.parentNode.removeChild(ov);
         return;
       }
-      setTimeout(function () {
+      var finished = false;
+      function done() {
+        if (finished) return;
+        finished = true;
+        clearTimeout(timer);
+        ov.classList.remove('on');
         ov.classList.add('gone');
         setTimeout(function () { if (ov.parentNode) ov.parentNode.removeChild(ov); }, 450);
-      }, 900);
+      }
+      var timer = setTimeout(function () {
+        if (document.readyState !== 'complete') ov.classList.add('on');
+      }, 700);
+      if (document.readyState === 'complete') done();
+      else {
+        window.addEventListener('load', done);
+        setTimeout(done, 6000);   /* never hold the page hostage */
+      }
     })();
   </script>
   <style id="bootRecoveryCss">

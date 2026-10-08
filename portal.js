@@ -133,6 +133,45 @@
     return v && VIEWS[v] && ALLOWED[role].indexOf(v) > -1 ? v : null;
   }
 
+  /* ---------------- Live views ----------------
+     A page repaints from the store every time it opens, so switching pages
+     shows the current data (local edits, sync merges, other tabs) instead of
+     whatever the markup held at boot. A page with an editor open is left
+     alone: its unsaved inputs only exist in the DOM. */
+  function viewBusy(name) {
+    if (name === 'fees' && feeEditing) return true;
+    if (name === 'grades' && gradeEditing) return true;
+    if (name === 'attendance' && attEditing) return true;
+    if (name === 'schedule' && schedEditing) return true;
+    return false;
+  }
+
+  function renderViewNow(name) {
+    if (!name || !VIEWS[name] || viewBusy(name)) return;
+    if (name === 'dashboard') {
+      renderBanner(); renderDashFeed();
+      if (isAdmin) renderAdminDash(); else renderDashPerf();
+    }
+    else if (name === 'news') renderFeed();
+    else if (name === 'students') renderStudents();
+    else if (name === 'approvals') renderApprovals();
+    else if (name === 'fees') { if (canSeeFees) renderFees(); }
+    else if (name === 'grades') renderGrades();
+    else if (name === 'attendance') renderAttendance();
+    else if (name === 'schedule') renderSchedule();
+    else if (name === 'tasks') renderTasks();
+    else if (name === 'faculty') renderFaculty();
+    else if (name === 'messages') renderMessages();
+    else if (name === 'contact') { renderConcerns(); renderNotices(); }
+    else if (name === 'pwreq') renderPwReqs();
+    else if (name === 'profile') renderProfile();
+  }
+
+  function activeViewName() {
+    const active = document.querySelector('.view.active');
+    return active ? active.id.replace(/^view-/, '') : null;
+  }
+
   function setView(name) {
     if (!VIEWS[name] || ALLOWED[role].indexOf(name) === -1) name = 'dashboard';
     document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + name));
@@ -140,10 +179,11 @@
     const meta = viewMeta(name);
     $('viewTitle').textContent = meta[0];
     $('viewSub').textContent = meta[1];
-    if (name === 'messages') renderMessages();
-    if (name === 'contact') { renderConcerns(); renderNotices(); markConcernsSeen(); markNoticesRead(); }
-    if (name === 'pwreq') renderPwReqs();
-    if (name === 'faculty') renderFaculty();
+    renderViewNow(name);
+    if (name === 'contact') { markConcernsSeen(); markNoticesRead(); }
+    /* Opening a page also nudges a fresh pull, so what you land on is current.
+       The sync layer throttles this, so rapid switching costs one request. */
+    if (NBANA.cloud && NBANA.cloud.refresh) NBANA.cloud.refresh();
     $('portalShell').classList.remove('side-open');
     closeDrawer();
     syncBottomNav(name);
@@ -3804,7 +3844,10 @@
 
     const all = loadThreads();
     const cur = activeThreadKey ? all[activeThreadKey] : null;
-    if (cur) {                              /* opening a conversation clears its unread count */
+    if (cur && unreadIn(cur) > 0) {         /* opening a conversation clears its unread count,
+                                               but only when something new arrived: an
+                                               unconditional write here would echo between
+                                               devices forever once pulls became periodic */
       cur.read = cur.read || {};
       cur.read[participantKey()] = nowStamp();
       saveThreads(all);
@@ -3928,11 +3971,34 @@
   /* Another tab wrote to the shared school data - keep this tab in step */
   window.addEventListener('storage', (e) => {
     if (!e.key || e.key.indexOf('nbana.') !== 0) return;
-    renderFeed();
-    renderApprovals();
-    renderConcerns();
-    const active = document.querySelector('.view.active');
-    if (active && active.id === 'view-messages') renderMessages();
+    const name = activeViewName();
+    if (name) renderViewNow(name);
+    refreshNotifs();
+  });
+
+  /* Cloud sync merged fresh data. Repaint what is on screen in place instead
+     of reloading: a reload flashes the loading popup, jumps back to the top
+     and throws away whatever was being typed. */
+  window.addEventListener('nbana:refresh', () => {
+    const fresh = NBANA.currentUser();
+    if (!fresh) {
+      NBANA.toast('This account is no longer available. Please sign in again.', 'error');
+      setTimeout(() => { NBANA.logout(); }, 900);
+      return;
+    }
+    Object.assign(user, fresh);
+    paintAvatar();
+    const name = activeViewName();
+    if (name) renderViewNow(name);
+    refreshNotifs();
+  });
+
+  /* Coming back with the browser's Back button restores this page from the
+     cache without re-running anything — repaint it so it is current again. */
+  window.addEventListener('pageshow', (e) => {
+    if (!e.persisted) return;
+    const name = activeViewName();
+    if (name) renderViewNow(name);
     refreshNotifs();
   });
 
