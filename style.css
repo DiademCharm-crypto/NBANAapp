@@ -1473,6 +1473,14 @@ footer {
 
 .pc-load.gone { opacity: 0; visibility: hidden; }
 
+/* Phones and the installed app already show the launch splash — this popup is
+   desktop only, so it never paints below the app-mode breakpoint. */
+body.app-mode .pc-load { display: none; }
+
+@media (max-width: 860px) {
+  .pc-load { display: none; }
+}
+
 .pc-load-card { text-align: center; }
 
 .pc-load-logo {

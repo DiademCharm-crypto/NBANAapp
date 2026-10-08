@@ -437,10 +437,14 @@ Western Mindanao Conference</p>
   <script src="app.js"></script>
 
   <script>
-    /* PC popup loading: keep the logo and loading animation visible briefly */
+    /* PC popup loading: desktop only — phones already show the app splash */
     (function () {
       var ov = document.getElementById('pcLoad');
       if (!ov) return;
+      if (document.body.classList.contains('app-mode') || window.innerWidth <= 860) {
+        if (ov.parentNode) ov.parentNode.removeChild(ov);
+        return;
+      }
       setTimeout(function () {
         ov.classList.add('gone');
         setTimeout(function () { if (ov.parentNode) ov.parentNode.removeChild(ov); }, 450);
