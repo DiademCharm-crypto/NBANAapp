@@ -97,14 +97,14 @@
       reqs.unshift(r);
       saveReqs(reqs);
     }
-    fpStatus('<div class="fp-ok">Request received by the school office. They will send your password in about <b>2&ndash;3 minutes</b> &mdash; wait a moment, then tap <b>Check status</b>.</div>');
+    fpStatus('<div class="fp-ok">Request received by the school office. They will send your password in about <b>2&ndash;3 minutes</b> &mdash; please wait a moment, then select <b>Check status</b>.</div>');
   });
 
   $('fpCheck').addEventListener('click', () => {
     const email = $('fpEmail').value.trim();
     if (!EMAIL_RE.test(email)) { fpStatus('<span class="fp-err">Please type your email first.</span>'); return; }
     const r = loadReqs().find((x) => String(x.email).toLowerCase() === email.toLowerCase());
-    if (!r) { fpStatus('<span class="fp-err">No request yet &mdash; tap <b>Request password</b> first.</span>'); return; }
+    if (!r) { fpStatus('<span class="fp-err">No request yet &mdash; please select <b>Request password</b> first.</span>'); return; }
     if (r.status === 'sent') { showSent(r); return; }
     fpStatus('<div class="fp-wait">Still waiting for the school office &mdash; they usually respond within 2&ndash;3 minutes.</div>');
   });

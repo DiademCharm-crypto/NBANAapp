@@ -872,7 +872,7 @@ footer {
 .auth-wrap {
   min-height: calc(100vh - 70px);
   display: grid;
-  grid-template-columns: 1fr 1.05fr;
+  grid-template-columns: 1fr;
 }
 
 .auth-brand {
@@ -1453,3 +1453,57 @@ footer {
   .nav-auth .nav-btn { padding: 7px 12px; font-size: 0.8rem; }
   .school-name { font-size: 0.95rem; }
 }
+
+/* ============================================================
+   PC POPUP LOADING (logo + loading animation over a blurred backdrop)
+   ============================================================ */
+
+.pc-load {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(11, 31, 58, 0.55);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  transition: opacity 0.4s ease, visibility 0.4s ease;
+}
+
+.pc-load.gone { opacity: 0; visibility: hidden; }
+
+.pc-load-card { text-align: center; }
+
+.pc-load-logo {
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  background: #fff;
+  padding: 9px;
+  object-fit: contain;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.28);
+}
+
+.pc-load-ring {
+  display: block;
+  width: 34px;
+  height: 34px;
+  margin: 20px auto 0;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.25);
+  border-top-color: #00a896;
+  animation: pc-load-spin 0.8s linear infinite;
+}
+
+.pc-load-text {
+  display: block;
+  margin-top: 12px;
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+@keyframes pc-load-spin { to { transform: rotate(360deg); } }

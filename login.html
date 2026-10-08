@@ -24,50 +24,33 @@
 </head>
 <body class="auth-page">
 
+  <!-- PC popup loading: logo + loading animation over a blurred background -->
+  <div class="pc-load" id="pcLoad" aria-hidden="true">
+    <div class="pc-load-card">
+      <img src="logo.png" alt="" class="pc-load-logo">
+      <span class="pc-load-ring"></span>
+      <span class="pc-load-text">Loading</span>
+    </div>
+  </div>
+
   <!-- App launch splash: only shown in app mode, hidden again by app.js -->
   <div id="splash" hidden>
     <img src="logo.png" alt="" class="splash-logo">
-    <strong class="splash-name">NBANA App</strong>
+    <strong class="splash-name">NBANA Portal</strong>
     <span class="splash-sub">Norberto Bana Sr. Mem. SDA Elementary School</span>
     <span class="splash-dots" aria-label="Loading"><i></i><i></i><i></i></span>
   </div>
 
   <!-- Navigation -->
   <nav class="navbar">
-    <span class="logo" role="img" aria-label="NBANA App">
+    <span class="logo" role="img" aria-label="NBANA Portal">
       <img src="logo.png" alt="NBANA Logo" class="logo-img">
-      <span class="school-name">NBANA App</span>
+      <span class="school-name">NBANA Portal</span>
     </span>
-    <!-- Header nav buttons removed: the header only shows the logo and app name -->
-    <div class="nav-auth"></div>
+    <!-- Header nav buttons removed: the header only shows the logo and portal name -->
   </nav>
 
   <main class="auth-wrap">
-
-    <!-- Brand / info panel -->
-    <aside class="auth-brand">
-      <span class="brand-badge">&#9670; NBANA School Portal</span>
-      <h2>Everything your family needs, in one secure portal.</h2>
-      <p>Create your account by completing the short information survey below &mdash; choose Student for learners, or Teacher / Admin with the staff secret code. Your answers set up your official portal profile.</p>
-      <ul class="brand-perks">
-        <li>
-          <span class="p-icon">&#182;</span>
-          <div><strong>Tuition fee balance</strong><span>See your assessed fees, payments, and balance anytime.</span></div>
-        </li>
-        <li>
-          <span class="p-icon">&#9733;</span>
-          <div><strong>Grades &amp; attendance</strong><span>Track card ratings and daily attendance records.</span></div>
-        </li>
-        <li>
-          <span class="p-icon">&#9638;</span>
-          <div><strong>Schedule &amp; assignments</strong><span>Class timetable, tasks, and due dates at a glance.</span></div>
-        </li>
-        <li>
-          <span class="p-icon">&#9825;</span>
-          <div><strong>School announcements</strong><span>Never miss enrollment windows and campus events.</span></div>
-        </li>
-      </ul>
-    </aside>
 
     <!-- Auth panel -->
     <section class="auth-panel">
@@ -81,7 +64,7 @@
         <!-- ============ SIGN IN ============ -->
         <div class="auth-pane" id="paneSignIn">
           <h3>Welcome back</h3>
-          <p class="hint">Sign in to open your school portal and check your tuition balance.</p>
+          <p class="hint">Sign in to open your school portal.</p>
 
           <form id="signInForm" novalidate>
             <div class="form-field">
@@ -104,7 +87,7 @@
           </form>
 
           <div class="forgot-panel" id="forgotPanel" hidden>
-            <p class="hint">Can't sign in? The school office can help. Type the email on your account and tap <b>Request password</b> &mdash; the office will respond in about <b>2&ndash;3 minutes</b>. Wait a moment, then tap <b>Check status</b>.</p>
+            <p class="hint">If you cannot sign in, the school office can assist. Enter the email address on your account and select <b>Request password</b>; the office normally responds within 2&ndash;3 minutes. Then select <b>Check status</b> to retrieve your password.</p>
             <div class="forgot-grid">
               <input class="input" type="email" id="fpEmail" placeholder="Your account email" autocomplete="email">
               <button type="button" class="btn btn-primary" id="fpRequest">Request password</button>
@@ -113,12 +96,6 @@
             <div class="fp-status" id="fpStatus"></div>
           </div>
 
-          <div class="demo-box">
-            <b>Demo accounts</b> &nbsp;<span class="hint">(all password: <b>nbana123</b>)</span><br>
-            Student &nbsp;&bull;&nbsp; <b>juan.delacruz@nbana.edu.ph</b><br>
-            Teacher admin &nbsp;&bull;&nbsp; <b>joy.lomongo@nbana.edu.ph</b> <span class="hint">(Grade 5)</span><br>
-            Principal / full admin &nbsp;&bull;&nbsp; <b>principal@nbana.edu.ph</b>
-          </div>
         </div>
 
         <!-- ============ SIGN UP (survey wizard) ============ -->
@@ -127,13 +104,13 @@
           <p class="hint" id="signupIntro">All 5 steps must be completed before your account can be created.</p>
 
           <div class="acct-type">
-            <span class="at-label">What kind of account are you making?</span>
+            <span class="at-label">Select the account type</span>
             <div class="seg" role="radiogroup" aria-label="Account type">
               <button type="button" class="seg-btn active" data-role="student" role="radio" aria-checked="true">Student</button>
               <button type="button" class="seg-btn" data-role="teacher" role="radio" aria-checked="false">Teacher</button>
               <button type="button" class="seg-btn" data-role="admin" role="radio" aria-checked="false">Admin</button>
             </div>
-            <p class="hint" id="acctTypeHint">Student is the default type and needs no secret code.</p>
+            <p class="hint" id="acctTypeHint">Student is the default account type and does not require a staff secret code.</p>
           </div>
 
           <div class="wizard-progress">
@@ -408,5 +385,16 @@
   <script src="supabase-config.js"></script>
   <script src="supabase-sync.js"></script>
   <script src="login.js"></script>
+  <script>
+    /* PC popup loading: keep the logo and loading animation visible briefly */
+    (function () {
+      var ov = document.getElementById('pcLoad');
+      if (!ov) return;
+      setTimeout(function () {
+        ov.classList.add('gone');
+        setTimeout(function () { if (ov.parentNode) ov.parentNode.removeChild(ov); }, 450);
+      }, 900);
+    })();
+  </script>
 </body>
 </html>

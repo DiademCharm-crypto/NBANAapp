@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>NBANA APP | Norberto Bana Sr. Mem. SDA Elementary School</title>
+  <title>NBANA Portal | Norberto Bana Sr. Mem. SDA Elementary School</title>
   
   <!-- Favicon (Browser Tab Icon) -->
   <link rel="icon" type="image/png" href="logo.png">
@@ -16,13 +16,13 @@
 
   <!-- Open Graph Meta Tags (Social Media & Preview Image) -->
   <meta property="og:type" content="website">
-  <meta property="og:title" content="NBANA APP | Norberto Bana Sr. Mem. SDA Elementary School">
+  <meta property="og:title" content="NBANA Portal | Norberto Bana Sr. Mem. SDA Elementary School">
   <meta property="og:description" content="Nurturing faith, academic excellence, and character development in a Christian environment.">
   <meta property="og:image" content="logo.png">
 
   <!-- Twitter Card Tags -->
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="NBANA APP | Norberto Bana Sr. Mem. SDA Elementary School">
+  <meta name="twitter:title" content="NBANA Portal | Norberto Bana Sr. Mem. SDA Elementary School">
   <meta name="twitter:description" content="Nurturing faith, academic excellence, and character development in a Christian environment.">
   <meta name="twitter:image" content="logo.png">
 
@@ -32,11 +32,20 @@
 </head>
 <body>
 
+  <!-- PC popup loading: logo + loading animation over a blurred background -->
+  <div class="pc-load" id="pcLoad" aria-hidden="true">
+    <div class="pc-load-card">
+      <img src="logo.png" alt="" class="pc-load-logo">
+      <span class="pc-load-ring"></span>
+      <span class="pc-load-text">Loading</span>
+    </div>
+  </div>
+
   <!-- Top Navigation Bar -->
   <nav class="navbar">
     <div class="logo">
       <img src="logo.png" alt="NBANA Logo" class="logo-img">
-      <span class="school-name">NBANA App</span>
+      <span class="school-name">NBANA Portal</span>
     </div>
     <!-- Header nav buttons removed: the header only shows the logo and app name -->
     <div class="nav-auth"></div>
@@ -264,5 +273,17 @@
 
   <script src="app.js"></script>
 
+
+  <script>
+    /* PC popup loading: keep the logo and loading animation visible briefly */
+    (function () {
+      var ov = document.getElementById('pcLoad');
+      if (!ov) return;
+      setTimeout(function () {
+        ov.classList.add('gone');
+        setTimeout(function () { if (ov.parentNode) ov.parentNode.removeChild(ov); }, 450);
+      }, 900);
+    })();
+  </script>
 </body>
 </html>

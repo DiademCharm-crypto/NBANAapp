@@ -19,10 +19,19 @@
 </head>
 <body>
 
+  <!-- PC popup loading: logo + loading animation over a blurred background -->
+  <div class="pc-load" id="pcLoad" aria-hidden="true">
+    <div class="pc-load-card">
+      <img src="logo.png" alt="" class="pc-load-logo">
+      <span class="pc-load-ring"></span>
+      <span class="pc-load-text">Loading</span>
+    </div>
+  </div>
+
   <!-- App launch splash: only shown in app mode, hidden again by app.js -->
   <div id="splash" hidden>
     <img src="logo.png" alt="" class="splash-logo">
-    <strong class="splash-name">NBANA App</strong>
+    <strong class="splash-name">NBANA Portal</strong>
     <span class="splash-sub">Norberto Bana Sr. Mem. SDA Elementary School</span>
     <span class="splash-dots" aria-label="Loading"><i></i><i></i><i></i></span>
   </div>
@@ -30,9 +39,9 @@
   <!-- The logo is deliberately not a link on the portal: tapping it must not
        dump the user back onto the public website. -->
   <nav class="navbar">
-    <span class="logo" role="img" aria-label="NBANA App">
+    <span class="logo" role="img" aria-label="NBANA Portal">
       <img src="logo.png" alt="NBANA Logo" class="logo-img">
-      <span class="school-name">NBANA App</span>
+      <span class="school-name">NBANA Portal</span>
     </span>
     <!-- Header nav buttons removed: the header only shows the logo and app name -->
   </nav>
@@ -50,6 +59,7 @@
 
       <nav class="side-nav" id="sideNav">
         <button type="button" class="active" data-view="dashboard"><span class="s-icon">&#9638;</span>Dashboard</button>
+        <button type="button" data-view="news"><span class="s-icon">&#128240;</span>Feed</button>
         <button type="button" data-view="students" hidden><span class="s-icon">&#9679;</span>Students</button>
         <button type="button" data-view="approvals" hidden><span class="s-icon">&#9878;</span>Approvals<span class="s-count" id="navApprCount" hidden>0</span></button>
         <button type="button" data-view="fees"><span class="s-icon">&#8369;</span>Tuition &amp; Fees</button>
@@ -57,7 +67,6 @@
         <button type="button" data-view="attendance"><span class="s-icon">&#10003;</span>Attendance</button>
         <button type="button" data-view="schedule"><span class="s-icon">&#9200;</span>Class Schedule</button>
         <button type="button" data-view="tasks"><span class="s-icon">&#9776;</span>Assignments</button>
-        <button type="button" data-view="news"><span class="s-icon">&#128240;</span>Feed</button>
         <button type="button" data-view="faculty"><span class="s-icon">&#127979;</span>Faculty &amp; Staff</button>
         <button type="button" data-view="messages"><span class="s-icon">&#128172;</span><span id="navMsgLabel">Messages</span><span class="s-count" id="navMsgCount" hidden>0</span></button>
         <button type="button" data-view="contact" hidden><span class="s-icon">&#128238;</span><span id="navContactLabel">Contact School</span><span class="s-count" id="navConcernCount" hidden>0</span></button>
@@ -67,7 +76,7 @@
 
       <div class="side-foot">
         <button type="button" class="side-logout" id="logoutBtn">Log out</button>
-        <p class="side-note">NBANA School Portal &mdash; demo build. Data is stored locally in your browser.</p>
+        <p class="side-note">NBANA School Portal &middot; Norberto Bana Sr. Mem. SDA Elementary School</p>
       </div>
     </aside>
 
@@ -444,6 +453,11 @@
 
       <!-- ============ MESSAGES (student <-> teacher, monitored by the admin) ============ -->
       <section class="view" id="view-messages">
+        <!-- Principal: two-state switch — Concerns (default, left) or Teacher ↔ Student -->
+        <div class="monitor-switch" id="monitorSwitch" hidden>
+          <button type="button" class="ms-btn active" data-monmode="concerns">Concerns</button>
+          <button type="button" class="ms-btn" data-monmode="threads">Teacher &harr; Student</button>
+        </div>
         <div class="panel chat-panel" id="chatPanel">
           <!-- Principal: student concerns come first (left side) -->
           <div class="chat-side" id="concernSide" hidden>
@@ -692,6 +706,7 @@
         <div class="panel">
           <div class="panel-head">
             <div><h3>Forgot-password requests</h3><span class="sub" id="pwSub">Users who asked the office for their password</span></div>
+            <button type="button" class="btn-sm" id="pwClear" hidden>Clear history</button>
           </div>
           <div class="panel-body flush feed" id="pwList"></div>
         </div>
@@ -850,5 +865,16 @@
   <script src="supabase-config.js"></script>
   <script src="supabase-sync.js"></script>
   <script src="portal.js"></script>
+  <script>
+    /* PC popup loading: keep the logo and loading animation visible briefly */
+    (function () {
+      var ov = document.getElementById('pcLoad');
+      if (!ov) return;
+      setTimeout(function () {
+        ov.classList.add('gone');
+        setTimeout(function () { if (ov.parentNode) ov.parentNode.removeChild(ov); }, 450);
+      }, 900);
+    })();
+  </script>
 </body>
 </html>

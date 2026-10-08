@@ -37,7 +37,8 @@
     /* Where the user was last time, so a refresh keeps the same page open */
     view: 'nbana.view.v1',
     thread: 'nbana.thread.v1',
-    monGrade: 'nbana.mongrade.v1'
+    monGrade: 'nbana.mongrade.v1',
+    monMode: 'nbana.monmode.v1'
   };
 
   function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
@@ -890,7 +891,7 @@
     const waiting = reqs.filter((r) => r.status === 'waiting').length;
     $('pwSub').textContent = waiting
       ? waiting + ' user' + (waiting === 1 ? '' : 's') + ' waiting \u00b7 respond within 2\u20133 minutes'
-      : 'No open requests \u00b7 forgotten-password requests land here';
+      : 'No open requests \u00b7 new requests will appear here';
     setBadge('navPwCount', waiting);
     $('pwList').innerHTML = reqs.length ? reqs.map((r) => {
       const pw = pwOf(r.id);
@@ -899,17 +900,19 @@
         '<span class="sub">' + esc(r.email) + ' \u00b7 asked ' + relTime(r.at) + ' ago</span></div>' +
         (r.status === 'sent'
           ? '<div class="pwr-row"><span class="pill pill-green">Sent</span>' +
-            (pw ? '<span class="pwr-pw">' + esc(pw) + '</span>' : '') + '</div>'
+            (pw ? '<span class="pwr-pw">' + esc(pw) + '</span>' : '') +
+            '<button type="button" class="btn-sm" data-pwdel="' + esc(r.id) + '">Delete</button></div>'
           : '<div class="pwr-row">' +
             (pw ? '<button type="button" class="btn-sm" data-pwreveal="' + esc(r.id) + '">Show password</button>' : '') +
             '<button type="button" class="btn-sm" data-pwtemp="' + esc(r.id) + '">Set temporary password</button>' +
             '<button type="button" class="btn-sm solid" data-pwsend="' + esc(r.id) + '">Mark as sent</button>' +
+            '<button type="button" class="btn-sm" data-pwdel="' + esc(r.id) + '">Delete</button>' +
           '</div>' +
           '<span class="sub">' + (pw
-            ? 'Check the user\u2019s identity, then tap <b>Mark as sent</b> so they can see it on the sign-in page.'
+            ? 'Check the user\u2019s identity, then select <b>Mark as sent</b> so they can see it on the sign-in page.'
             : 'No stored password on file \u2014 set a temporary one, then mark it sent.') + '</span>') +
       '</div>';
-    }).join('') : '<div class="empty-state"><span class="es-icon">&#128273;</span>No forgot-password requests.</div>';
+    }).join('') : '<div class="empty-state"><span class="es-icon">&#128273;</span>No password requests yet.</div>';
 
     $('pwList').querySelectorAll('[data-pwreveal]').forEach((b) =>
       b.addEventListener('click', () => {
@@ -941,6 +944,43 @@
         refreshNotifs();
         NBANA.toast('Password sent \u2014 ' + r.email + ' can now see it on the sign-in page.', 'success');
       }));
+
+    /* Deleting a request removes it from the history list */
+    $('pwList').querySelectorAll('[data-pwdel]').forEach((b) =>
+      b.addEventListener('click', () => {
+        const id = b.dataset.pwdel;
+        const r = loadPwReqs().find((x) => x.id === id);
+        if (!r) return;
+        askConfirm({
+          title: 'Delete this request?',
+          body: 'The password request from ' + (r.email || '') + ' will be removed from the history list.',
+          okLabel: 'Delete',
+          onOk: () => {
+            savePwReqs(loadPwReqs().filter((x) => x.id !== id));
+            renderPwReqs();
+            refreshNotifs();
+            NBANA.toast('Password request deleted.', 'success');
+          }
+        });
+      }));
+
+    /* Clear the whole history in one step (with confirmation) */
+    const clr = $('pwClear');
+    if (clr) {
+      clr.hidden = !reqs.length;
+      clr.onclick = () => askConfirm({
+        title: 'Clear all password requests?',
+        body: 'All ' + reqs.length + ' request' + (reqs.length === 1 ? '' : 's') +
+          ' will be removed from the history list. Accounts and passwords are not affected.',
+        okLabel: 'Clear history',
+        onOk: () => {
+          savePwReqs([]);
+          renderPwReqs();
+          refreshNotifs();
+          NBANA.toast('Password request history cleared.', 'success');
+        }
+      });
+    }
   }
 
   /* ---------------- Composer (principal: all users, teacher: own grade) ---------------- */
@@ -3346,6 +3386,9 @@
      filter that narrows both lists ('all' shows every grade). */
   let monitorFocus = null;
   let monitorGrade = lsGet(K.monGrade) || 'all';
+  /* Two-state switch: Concerns is the default (and left) option, Teacher <->
+     Student conversations are the second state. */
+  let monitorMode = lsGet(K.monMode) === 'threads' ? 'threads' : 'concerns';
 
   function loadThreads() { return NBANA.store.get(K.threads, {}) || {}; }
   function saveThreads(t) { NBANA.store.set(K.threads, t); }
@@ -3423,8 +3466,8 @@
   }
 
   /* ---------------- Principal: message monitoring ----------------
-     Concerns keep the left side, teacher \u2194 student conversations take the
-     right, and one grade selector narrows both lists. Opening a row reads it in
+     A two-state switch keeps Concerns as the default and left option, with
+     Teacher <-> Student conversations on the right. The open row is read in
      the pane on the far right; a concern can be answered from there. */
   function gradeOfStudent(id) {
     const a = id ? NBANA.findAccount(id) : null;
@@ -3435,14 +3478,8 @@
     return monitorGrade === 'all' || grade === monitorGrade;
   }
 
-  function monitorGradeOfConcern(c) {
-    return gradeOfStudent(c.studentId) || String(c.grade || '').split(' \u00b7 ')[0];
-  }
-
   function monitorConcerns() {
-    return loadConcerns()
-      .filter(c => monitorInGrade(monitorGradeOfConcern(c)))
-      .sort((a, b) => new Date(b.at) - new Date(a.at));
+    return loadConcerns().sort((a, b) => new Date(b.at) - new Date(a.at));
   }
 
   function monitorThreads() {
@@ -3560,34 +3597,42 @@
   }
 
   function renderMonitor() {
-    if ($('chatPanel')) $('chatPanel').classList.add('monitor-3');
+    if (!isPrincipal) return;
+
+    /* Two-state switch: Concerns (default, left) or Teacher <-> Student */
+    const sw = $('monitorSwitch');
+    if (sw) {
+      sw.hidden = false;
+      sw.querySelectorAll('[data-monmode]').forEach(b =>
+        b.classList.toggle('active', b.dataset.monmode === monitorMode));
+    }
+
+    const concernsMode = monitorMode === 'concerns';
+    const panel = $('chatPanel');
+    if (panel) {
+      panel.classList.remove('monitor-3');
+      panel.classList.add('monitor-2');
+    }
     if ($('chatSide')) $('chatSide').hidden = true;
-    if ($('concernSide')) $('concernSide').hidden = false;
-    if ($('monitorSide')) $('monitorSide').hidden = false;
+    if ($('concernSide')) $('concernSide').hidden = !concernsMode;
+    if ($('monitorSide')) $('monitorSide').hidden = concernsMode;
 
-    const concerns = renderMonitorConcernList();
-    const threads = renderMonitorThreadList();
-
-    /* Concerns come first: open the newest one until the admin picks something */
-    if (monitorFocus !== 'concern' && monitorFocus !== 'thread') {
-      monitorFocus = concerns.length ? 'concern' : 'thread';
-    }
-    if (monitorFocus === 'concern' && !concerns.length && threads.length) monitorFocus = 'thread';
-    if (monitorFocus === 'thread' && !threads.length && concerns.length) monitorFocus = 'concern';
-
-    if ($('concernSideSub')) {
-      $('concernSideSub').textContent = concerns.length + ' shown \u00b7 ' +
-        loadConcerns().filter(c => c.status !== 'resolved').length + ' still open';
-    }
-    if ($('monitorSideSub')) {
-      $('monitorSideSub').textContent = threads.length + ' conversation' + (threads.length === 1 ? '' : 's') +
-        (monitorGrade === 'all' ? ' in the school' : ' in ' + monitorGrade) + ' \u00b7 read only';
-    }
-
-    if (monitorFocus === 'concern') {
+    if (concernsMode) {
+      const concerns = renderMonitorConcernList();
+      monitorFocus = 'concern';
+      if ($('concernSideSub')) {
+        $('concernSideSub').textContent = concerns.length + ' shown \u00b7 ' +
+          loadConcerns().filter(c => c.status !== 'resolved').length + ' still open';
+      }
       monitorReaderConcern(concerns.find(c => c.id === activeConcernId) || null);
     } else {
       const all = loadThreads();
+      const threads = renderMonitorThreadList();
+      monitorFocus = 'thread';
+      if ($('monitorSideSub')) {
+        $('monitorSideSub').textContent = threads.length + ' conversation' + (threads.length === 1 ? '' : 's') +
+          (monitorGrade === 'all' ? ' in the school' : ' in ' + monitorGrade) + ' \u00b7 read only';
+      }
       const c = threads.find(x => x.threadKey === activeThreadKey) || null;
       const cur = c ? all[c.threadKey] : null;
       if (cur) {
@@ -3619,6 +3664,8 @@
     c.replies.push({ by: 'admin', byName: fullName, text: text, at: nowStamp() });
     c.status = 'open';
     saveConcerns(list);
+    monitorMode = 'concerns';
+    lsSet(K.monMode, monitorMode);
     monitorFocus = 'concern';
     renderMonitor();
     renderConcerns();
@@ -3732,8 +3779,8 @@
       $('chatInput').focus();
     });
 
-    /* Principal: concerns keep the left side, teacher \u2194 student the right,
-       and one grade selector narrows both lists. */
+    /* Principal: two-state switch — Concerns (default) or Teacher <-> Student,
+       with a grade selector that narrows the monitored conversations. */
     if (isPrincipal && $('monGradeSel')) {
       $('monGradeSel').innerHTML = '<option value="all">All grades</option>' +
         GRADES.map(g => '<option value="' + esc(g) + '">' + esc(g) + '</option>').join('');
@@ -3745,10 +3792,15 @@
         monitorFocus = null;                      /* let the first row of the new list open */
         renderMonitor();
       });
-      if ($('chatPanel')) $('chatPanel').classList.add('monitor-3');
-      if ($('chatSide')) $('chatSide').hidden = true;
-      if ($('concernSide')) $('concernSide').hidden = false;
-      if ($('monitorSide')) $('monitorSide').hidden = false;
+    }
+    if (isPrincipal) {
+      document.querySelectorAll('[data-monmode]').forEach(b =>
+        b.addEventListener('click', () => {
+          monitorMode = b.dataset.monmode;
+          lsSet(K.monMode, monitorMode);
+          monitorFocus = null;
+          renderMonitor();
+        }));
     }
   }
 

@@ -253,13 +253,22 @@
 </head>
 <body>
 
+  <!-- PC popup loading: logo + loading animation over a blurred background -->
+  <div class="pc-load" id="pcLoad" aria-hidden="true">
+    <div class="pc-load-card">
+      <img src="logo.png" alt="" class="pc-load-logo">
+      <span class="pc-load-ring"></span>
+      <span class="pc-load-text">Loading</span>
+    </div>
+  </div>
+
   <div class="top-bar">
     <!-- Header nav buttons removed: the header only shows the logo and app name -->
     <div class="nav-spacer" aria-hidden="true"></div>
     <!-- Header brand: logo + app name only, deliberately not a link -->
-    <div class="school-brand" role="img" aria-label="NBANA App">
+    <div class="school-brand" role="img" aria-label="NBANA Portal">
       <img src="logo.png" alt="NBANA Logo" class="school-logo-img">
-      <span class="school-tag">NBANA App</span>
+      <span class="school-tag">NBANA Portal</span>
     </div>
     <div class="nav-auth"></div>
   </div>
@@ -426,5 +435,17 @@ Western Mindanao Conference</p>
   <script src="faculty-roster.js"></script>
   <script src="supabase-config.js"></script>
   <script src="app.js"></script>
+
+  <script>
+    /* PC popup loading: keep the logo and loading animation visible briefly */
+    (function () {
+      var ov = document.getElementById('pcLoad');
+      if (!ov) return;
+      setTimeout(function () {
+        ov.classList.add('gone');
+        setTimeout(function () { if (ov.parentNode) ov.parentNode.removeChild(ov); }, 450);
+      }, 900);
+    })();
+  </script>
 </body>
 </html>

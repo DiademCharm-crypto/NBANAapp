@@ -964,12 +964,14 @@ input.invalid, select.invalid, textarea.invalid { border-color: #e0245e !importa
 
 .monitor-switch {
   display: flex;
+  max-width: 420px;
   gap: 4px;
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: 100px;
   padding: 4px;
   margin-top: 10px;
+  margin-bottom: 14px;
 }
 
 .ms-btn {
@@ -1922,11 +1924,15 @@ body.app-mode .perf-bar { display: none; }
 }
 .mon-grade .input-sm { max-width: none; flex: 1; }
 .chat-panel.monitor-3 { grid-template-columns: 300px 300px 1fr; min-height: 620px; }
+.chat-panel.monitor-2 { grid-template-columns: 340px 1fr; min-height: 620px; }
 
 @media (max-width: 1100px) {
-  .chat-panel.monitor-3 { grid-template-columns: 1fr; }
-  .chat-panel.monitor-3 .chat-side { border-right: none; border-bottom: 1px solid var(--border); }
-  .chat-panel.monitor-3 .thread-list { max-height: 220px; }
+  .chat-panel.monitor-3,
+  .chat-panel.monitor-2 { grid-template-columns: 1fr; }
+  .chat-panel.monitor-3 .chat-side,
+  .chat-panel.monitor-2 .chat-side { border-right: none; border-bottom: 1px solid var(--border); }
+  .chat-panel.monitor-3 .thread-list,
+  .chat-panel.monitor-2 .thread-list { max-height: 220px; }
 }
 
 /* ---------------- Faculty editor: photo upload ---------------- */
