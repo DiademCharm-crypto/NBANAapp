@@ -47,8 +47,17 @@
     schedule: { key: 'nbana.schedules.v1', shape: 'map' },
     notice: { key: 'nbana.notices.v1', shape: 'list' },
     /* Faculty & staff listing (portal + the public Teachers & Staff page) */
-    faculty: { key: 'nbana.faculty.v1', shape: 'list' }
+    faculty: { key: 'nbana.faculty.v1', shape: 'list' },
+    /* School announcements \u2014 the office's notices, managed by the full admin */
+    announcement: { key: 'nbana.announcements.v1', shape: 'list' },
+    /* Tombstones: ids of deleted posts/notices/announcements, so one device's
+       deletion reaches the others instead of being pushed back up by them. */
+    deleted: { key: 'nbana.deleted.v1', shape: 'list' }
   };
+
+  /* Kinds whose removals must travel to the other devices. */
+  const TOMBSTONE_KINDS = { post: 1, notice: 1, announcement: 1 };
+  const TOMBSTONE_MAX_AGE = 90 * 24 * 60 * 60 * 1000;
   const KEY_TO_KIND = {};
   Object.keys(KINDS).forEach(function (name) { KEY_TO_KIND[KINDS[name].key] = name; });
 
@@ -220,7 +229,28 @@
       pendingUpserts.get(name).set(e.id, e.item);
       pendingDeletes.get(name).delete(e.id);
     });
-    prev.forEach(function (json, id) { if (!nextIds.has(id)) pendingDeletes.get(name).add(id); });
+    prev.forEach(function (json, id) {
+      if (nextIds.has(id)) return;
+      pendingDeletes.get(name).add(id);
+      if (TOMBSTONE_KINDS[name]) markDeleted(id);
+    });
+    scheduleFlush();
+  }
+
+  /* Record that an item was deleted here, so other devices drop their copy
+     instead of uploading it again as "local only". */
+  function markDeleted(id) {
+    const key = KINDS.deleted.key;
+    const sid = String(id);
+    const cutoff = Date.now() - TOMBSTONE_MAX_AGE;
+    const list = (NBANA.store.get(key, []) || []).filter(function (t) {
+      return t && t.at && new Date(t.at).getTime() > cutoff;
+    });
+    if (list.some(function (t) { return String(t.forId) === sid; })) return;
+    const entry = { id: 'del_' + sid, forId: sid, at: new Date().toISOString() };
+    list.push(entry);
+    writeLocal(key, list);
+    pendingUpserts.get('deleted').set(entry.id, entry);
     scheduleFlush();
   }
 
@@ -393,6 +423,17 @@
       (byKind[r.kind] = byKind[r.kind] || []).push(r);
     });
 
+    /* Every id that was deleted anywhere, so no device brings it back */
+    const dead = new Set();
+    (byKind.deleted || []).forEach(function (row) {
+      const p = row.payload || {};
+      const id = String(p.forId || p.id || '').replace(/^del_/, '');
+      if (id) dead.add(id);
+    });
+    (NBANA.store.get(KINDS.deleted.key, []) || []).forEach(function (t) {
+      if (t && t.forId) dead.add(String(t.forId));
+    });
+
     let changed = false;
     for (const name of Object.keys(KINDS)) {
       const conf = KINDS[name];
@@ -403,9 +444,17 @@
       const cloudIds = new Set();
       let dirty = false;
 
+      /* Anything tombstoned is gone for good: never restore it from the cloud */
+      if (TOMBSTONE_KINDS[name] && dead.size) {
+        for (let i = entries.length - 1; i >= 0; i--) {
+          if (dead.has(entries[i].id)) { entries.splice(i, 1); dirty = true; }
+        }
+      }
+
       cloudRows.forEach(function (row) {
         const id = String(row.id);
         cloudIds.add(id);
+        if (dead.has(id)) return;
         const payload = row.payload || {};
         if (payload.id == null) payload.id = id;
         const mine = localById.get(id);
@@ -421,8 +470,18 @@
       if (dirty) { writeLocal(conf.key, rebuild(name, entries)); changed = true; }
 
       const localOnly = entries
-        .filter(function (e) { return !cloudIds.has(e.id); })
+        .filter(function (e) { return !cloudIds.has(e.id) && !dead.has(e.id); })
         .map(function (e) { return e.item; });
+
+      /* Tidy up the rows the tombstones just invalidated */
+      if (TOMBSTONE_KINDS[name] && dead.size) {
+        const stale = cloudRows
+          .filter(function (r) { return dead.has(String(r.id)); })
+          .map(function (r) { return String(r.id); });
+        if (stale.length) {
+          try { await deleteItems(name, stale); } catch (e) { /* best effort */ }
+        }
+      }
       if (localOnly.length) {
         try {
           stampLocal(name, localOnly);

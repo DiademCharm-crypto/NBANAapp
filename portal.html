@@ -480,9 +480,58 @@
             </form>
           </div>
         </div>
+        <!-- School announcements: the office's notices, managed by the full admin.
+             Text only \u2014 photos and event memories live in the feed below. -->
         <div class="panel">
           <div class="panel-head">
-            <div><h3>School announcements</h3><span class="sub" id="newsFeedSub">Posted by the administration</span></div>
+            <div><h3>School announcements</h3><span class="sub" id="annSub">Notices from the school office</span></div>
+            <button type="button" class="btn-sm solid" id="btnAnnounce" hidden>+ Add announcement</button>
+          </div>
+          <form class="announce-form" id="announceForm" hidden>
+            <div class="announce-row">
+              <div class="form-field">
+                <label for="annWhen">When</label>
+                <input class="input" type="text" id="annWhen" placeholder="Coming soon \u00b7 Oct 20, 2026 \u00b7 Every 15th">
+              </div>
+              <div class="form-field">
+                <label for="annTag">Category</label>
+                <select class="input" id="annTag">
+                  <option>Enrollment</option>
+                  <option>Event</option>
+                  <option>Billing</option>
+                  <option>Advisory</option>
+                  <option>Program</option>
+                  <option>Sports</option>
+                  <option>Spiritual</option>
+                  <option>Opening</option>
+                  <option>Graduation</option>
+                  <option>Other</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-field">
+              <label for="annTitle">Headline <span class="req">*</span></label>
+              <input class="input" type="text" id="annTitle" placeholder="e.g. Second Quarter Examinations">
+            </div>
+            <div class="form-field">
+              <label for="annBody">Details <span class="req">*</span></label>
+              <textarea class="input textarea" id="annBody" rows="3" placeholder="What should every student, parent and teacher know?"></textarea>
+            </div>
+            <div class="composer-actions">
+              <span class="sub">Announcements appear here and on the dashboard for every portal user.</span>
+              <span class="announce-btns">
+                <button type="button" class="btn-sm" id="annCancel">Cancel</button>
+                <button type="submit" class="btn-sm solid">Publish announcement</button>
+              </span>
+            </div>
+          </form>
+          <div class="panel-body flush feed" id="announceList"></div>
+        </div>
+
+        <!-- Feed: Facebook-style posts with photos, uploaded by the school -->
+        <div class="panel">
+          <div class="panel-head">
+            <div><h3>Feed</h3><span class="sub" id="newsFeedSub">Posted by the administration</span></div>
             <button type="button" class="btn-sm solid" id="btnCompose" hidden>+ New post</button>
           </div>
           <div class="panel-body flush feed" id="newsList"></div>

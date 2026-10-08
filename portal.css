@@ -598,12 +598,42 @@ body.portal-page footer { margin-top: 0; }
 
 /* Announcements in portal */
 .news-item {
+  position: relative;
   padding: 17px 20px;
   border-bottom: 1px solid var(--border);
   border-left: 4px solid var(--teal);
 }
 
 .news-item:last-child { border-bottom: none; }
+
+/* Announcement rows are plain notices: label + category + headline + details */
+.news-item .tag { margin-left: 8px; }
+.news-item .btn-del { position: absolute; top: 14px; right: 16px; }
+.news-item .btn-del:hover { background: #e0245e; color: #fff; }
+
+/* Announcement composer (full admin) */
+.announce-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px 20px;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+}
+
+.announce-form .announce-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.announce-form .announce-btns { display: flex; gap: 8px; }
+
+@media (max-width: 620px) {
+  .announce-form .announce-row { grid-template-columns: 1fr; }
+  .announce-form .composer-actions { flex-direction: column; align-items: stretch; }
+  .announce-form .announce-btns { justify-content: flex-end; }
+}
 
 .news-item h4 { color: var(--navy); font-size: 0.97rem; margin: 6px 0 4px; }
 [data-theme="dark"] .news-item h4 { color: #cfe1ff; }

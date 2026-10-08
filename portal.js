@@ -38,7 +38,9 @@
     view: 'nbana.view.v1',
     thread: 'nbana.thread.v1',
     monGrade: 'nbana.mongrade.v1',
-    monMode: 'nbana.monmode.v1'
+    monMode: 'nbana.monmode.v1',
+    /* School announcements: the office's notices, kept apart from the feed */
+    announce: 'nbana.announcements.v1'
   };
 
   function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
@@ -555,11 +557,132 @@
     { tag: 'Advisory', date: 'Daily', title: 'Please bring your school ID every day', body: 'Students are asked to wear their official school ID inside the campus at all times for safety and security.' }
   ];
 
-  function newsItemHtml(n) {
-    return '<div class="news-item"><span class="date">' + n.date.toUpperCase() + '</span>' +
-      '<span class="tag" style="margin-left:8px">' + n.tag + '</span>' +
-      '<h4>' + n.title + '</h4><p>' + n.body + '</p></div>';
+
+  /* ---------------- School announcements --------------
+     Announcements are the school office's notices: a when-label, a category,
+     a headline and the details. They stay separate from the feed, which carries
+     Facebook-style posts with photos. The full admin adds and removes them, and
+     every change reaches the other devices through the cloud. */
+  /* The four notices the school started with, in the order they were shown */
+  const SEED_ORDER = { enrollment: 4, event: 3, billing: 2, advisory: 1 };
+
+  function loadAnnouncements() {
+    let stored = NBANA.store.get(K.announce, null);
+    if (!Array.isArray(stored)) {
+      /* First run: keep the notices the school already had, as editable entries */
+      stored = NEWS.map(n => {
+        const tag = n.tag.toLowerCase();
+        return {
+          id: 'ann_seed_' + tag, when: n.date, tag: n.tag, title: n.title, body: n.body,
+          at: '2026-08-01T08:00:0' + (SEED_ORDER[tag] || 0) + '.000Z'
+        };
+      });
+      saveAnnouncements(stored);
+    }
+    /* Give the original notices distinct times (once) so every device, and the
+       cloud copy, lists them in the same order. */
+    let touched = false;
+    stored.forEach(a => {
+      const m = /^ann_seed_([a-z]+)$/.exec(String(a.id));
+      if (!m || !SEED_ORDER[m[1]]) return;
+      const want = '2026-08-01T08:00:0' + SEED_ORDER[m[1]] + '.000Z';
+      if (a.at !== want) { a.at = want; touched = true; }
+    });
+    if (touched) saveAnnouncements(stored);
+    /* Newest first, so a fresh announcement always leads on every device */
+    return stored.slice().sort((a, b) => new Date(b.at || 0) - new Date(a.at || 0));
   }
+  function saveAnnouncements(list) { NBANA.store.set(K.announce, list); }
+
+  function announceHtml(a) {
+    return '<div class="news-item">' +
+      '<span class="date">' + esc(String(a.when || 'Notice').toUpperCase()) + '</span>' +
+      '<span class="tag">' + esc(a.tag || 'Notice') + '</span>' +
+      (isPrincipal
+        ? '<button type="button" class="btn-del" data-del-announce="' + esc(a.id) + '" title="Delete announcement">&times;</button>'
+        : '') +
+      '<h4>' + esc(a.title || '') + '</h4>' +
+      '<p>' + esc(a.body || '') + '</p>' +
+      (isPrincipal && a.addedBy
+        ? '<span class="sub">Added by ' + esc(a.addedBy) + ' \u00b7 ' + fmtStamp(a.at) + '</span>'
+        : '') +
+    '</div>';
+  }
+
+  function renderAnnouncements() {
+    const btn = $('btnAnnounce');
+    if (btn) btn.hidden = !isPrincipal;
+    const list = loadAnnouncements();
+    const wrap = $('announceList');
+    if (wrap) {
+      wrap.innerHTML = list.length
+        ? list.map(announceHtml).join('')
+        : '<div class="empty-state"><span class="es-icon">&#128226;</span>No announcements yet.</div>';
+    }
+    const sub = $('annSub');
+    if (sub) {
+      sub.textContent = list.length
+        ? list.length + ' notice' + (list.length === 1 ? '' : 's') + ' \u00b7 shown to every portal user'
+        : 'Notices from the school office';
+    }
+    renderDashFeed();
+  }
+
+  /* The full admin adds a future announcement here */
+  function announceInit() {
+    const form = $('announceForm');
+    if (!form) return;
+    const open = $('btnAnnounce');
+    if (open) open.addEventListener('click', () => {
+      form.hidden = !form.hidden;
+      if (!form.hidden && $('annTitle')) $('annTitle').focus();
+    });
+    const cancel = $('annCancel');
+    if (cancel) cancel.addEventListener('click', () => { form.hidden = true; form.reset(); });
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      if (!isPrincipal) return;
+      const title = $('annTitle').value.trim();
+      const body = $('annBody').value.trim();
+      if (!title || !body) {
+        NBANA.toast('Please add a headline and the details.', 'error');
+        return;
+      }
+      const list = loadAnnouncements();
+      list.unshift({
+        id: newId('ann'),
+        when: $('annWhen').value.trim() || 'Notice',
+        tag: $('annTag').value || 'Notice',
+        title: title, body: body, addedBy: fullName, at: nowStamp()
+      });
+      saveAnnouncements(list);
+      form.reset();
+      form.hidden = true;
+      renderAnnouncements();
+      if (typeof renderAdminDash === 'function') renderAdminDash();
+      NBANA.toast('Announcement published \u2014 every portal user can see it now.', 'success');
+    });
+  }
+
+  /* Deleting works from the Feed page and from the dashboard copy */
+  document.addEventListener('click', (e) => {
+    const btn = e.target && e.target.closest ? e.target.closest('[data-del-announce]') : null;
+    if (!btn) return;
+    const id = btn.dataset.delAnnounce;
+    const a = loadAnnouncements().find(x => x.id === id);
+    const what = a ? ('\u201c' + String(a.title || 'This announcement').replace(/\s+/g, ' ').trim().slice(0, 70) + '\u201d') : 'This announcement';
+    askConfirm({
+      title: 'Delete this announcement?',
+      body: what + ' will be removed for everyone. This cannot be undone.',
+      okLabel: 'Delete announcement',
+      onOk: () => {
+        saveAnnouncements(loadAnnouncements().filter(x => x.id !== id));
+        renderAnnouncements();
+        if (typeof renderAdminDash === 'function') renderAdminDash();
+        NBANA.toast('Announcement deleted.', 'success');
+      }
+    });
+  });
 
   /* ---------------- Past school events (shown under the announcements) ---------------- */
   const PAST_EVENTS = [
@@ -662,7 +785,8 @@
   function renderFeed() {
     const list = visibleFeed();
     $('newsList').innerHTML =
-      (list.length ? list.map(p => postHtml(p)).join('') : NEWS.map(newsItemHtml).join('')) +
+      (list.length ? list.map(p => postHtml(p)).join('')
+        : '<div class="empty-state"><span class="es-icon">&#128247;</span>No posts yet \u2014 the school\u2019s photos and event memories appear here.</div>') +
       '<div class="feed-divider"><span>Past events &amp; school memories</span></div>' +
       PAST_EVENTS.map(e => pastEventHtml(e)).join('');
     mediaHydrate($('newsList'));
@@ -670,13 +794,12 @@
     const minePending = loadFeed().filter(p => p.authorId === user.id && postStatus(p) === 'pending').length;
     $('newsFeedSub').textContent = isAdmin
       ? (list.length + ' post' + (list.length === 1 ? '' : 's') + ' \u00b7 ' +
-         (isPrincipal ? 'your announcements reach every portal user'
+         (isPrincipal ? 'your posts reach every portal user'
            : (minePending ? minePending + ' waiting for the principal\u2019s approval'
                           : 'approved posts for ' + teacherGrade)))
       : 'Posted by the school and your teachers';
 
-    renderDashFeed();
-
+    renderAnnouncements();
   }
 
   /* Deleting works wherever a post appears (feed, approvals list, dashboards) */
@@ -708,25 +831,23 @@
     });
   });
 
-  /* The dashboard carries official school announcements only \u2014 teacher and class
-     posts, and the past-events archive, stay on the Feed page. */
-  function announcementPosts() {
-    return visibleFeed()
-      .filter(p => NBANA.isAdminRole(p.role))
-      .sort((a, b) => new Date(b.date) - new Date(a.date));
-  }
-
+  /* The dashboard carries the school's announcements \u2014 feed posts with photos,
+     and the past-events archive, stay on the Feed page. */
   function renderDashFeed() {
     const wrap = $('dashFeed');
     if (!wrap) return;
-    const list = announcementPosts();
+    const all = loadAnnouncements();
+    const list = all.slice(0, 4);
     wrap.innerHTML = list.length
-      ? list.map(p => postHtml(p)).join('')
-      : NEWS.map(newsItemHtml).join('');
-    mediaHydrate(wrap);
-    $('dashFeedSub').textContent = list.length
-      ? list.length + ' announcement' + (list.length === 1 ? '' : 's') + ' from the school'
-      : 'Official announcements from the school';
+      ? list.map(announceHtml).join('')
+      : '<div class="empty-state"><span class="es-icon">&#128226;</span>No announcements yet.</div>';
+    $('dashFeedSub').textContent = isPrincipal
+      ? (all.length
+        ? all.length + ' notice' + (all.length === 1 ? '' : 's') + ' \u00b7 add or remove them on the Feed page'
+        : 'Add the first announcement on the Feed page')
+      : (all.length
+        ? all.length + ' notice' + (all.length === 1 ? '' : 's') + ' from the school office'
+        : 'Official announcements from the school');
   }
 
   /* ---------------- Student performance (dashboard panel) ---------------- */
@@ -3108,7 +3229,7 @@
       bannerText = 'Teacher account \u00b7 ' + teacherGrade + ' \u00b7 You can edit grades, attendance, schedule, and assignments for your class only. Tuition is managed by the administration.';
     }
 
-    const announcements = feed.filter(p => NBANA.isAdminRole(p.role)).slice(0, 3);
+    const announcements = loadAnnouncements().slice(0, 3);
 
     box.innerHTML =
       '<div class="welcome-banner">' +
@@ -3127,10 +3248,10 @@
         '<div class="panel-body" style="display:flex;flex-direction:column;gap:10px">' +
         actions.map((a, i) => '<button type="button" class="btn-sm' + (i === 0 ? ' solid' : '') + '" data-goto="' + a[0] + '">' + a[1] + '</button>').join('') +
         '</div></div>' +
-        '<div class="panel"><div class="panel-head"><div><h3>Latest announcements</h3><span class="sub">Official posts from the school</span></div>' +
+        '<div class="panel"><div class="panel-head"><div><h3>Latest announcements</h3><span class="sub">Notices from the school office</span></div>' +
         '<button type="button" class="btn-sm" data-goto="news">See all</button></div>' +
         '<div class="panel-body flush feed">' +
-        (announcements.length ? announcements.map(p => postHtml(p)).join('') : NEWS.slice(0, 2).map(newsItemHtml).join('')) +
+        (announcements.length ? announcements.map(announceHtml).join('') : '<div class="empty-state"><span class="es-icon">&#128226;</span>No announcements yet.</div>') +
         '</div></div>' +
       '</div>' +
       '<div class="panel" id="adminPerfPanel">' +
@@ -3981,7 +4102,9 @@
   /* ---------------- Boot ---------------- */
   migrateFeedPhotos();
   renderFeed();
+  renderAnnouncements();
   composerSetup();
+  announceInit();
 
   kidMode();
   navLabels();
